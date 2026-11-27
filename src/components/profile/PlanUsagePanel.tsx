@@ -62,8 +62,7 @@ export default function PlanUsagePanel({
       <CardHeader className="space-y-3 pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Plan y facturación</p>
-            <CardTitle className="mt-1 text-xl">Uso de la organización</CardTitle>
+            <CardTitle className="text-xl">Plan y uso de la organización</CardTitle>
           </div>
           <Badge variant={isPaidPlan ? "secondary" : "outline"} className="gap-1.5 px-2.5 py-1">
             {isPaidPlan ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : null}
@@ -114,10 +113,10 @@ export default function PlanUsagePanel({
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <Button type="button" variant="outline" onClick={() => window.open(PRO_PLAN_CHECKOUT_URL, "_blank", "noopener,noreferrer") }>
+              <Button type="button" variant="outline" className="min-h-11" onClick={() => window.open(PRO_PLAN_CHECKOUT_URL, "_blank", "noopener,noreferrer") }>
                 Ver Plan Pro
               </Button>
-              <Button type="button" onClick={() => window.open(FULL_PLAN_CHECKOUT_URL, "_blank", "noopener,noreferrer") }>
+              <Button type="button" className="min-h-11" onClick={() => window.open(FULL_PLAN_CHECKOUT_URL, "_blank", "noopener,noreferrer") }>
                 Ver Plan Full
               </Button>
             </div>
@@ -126,7 +125,7 @@ export default function PlanUsagePanel({
           <p className="rounded-xl border border-border/70 bg-muted/25 p-4 text-xs leading-5 text-muted-foreground">
             {canOfferUpgrade
               ? "Consultá con un administrador de la organización para gestionar el plan y la facturación."
-              : "El estado de este plan necesita validación de facturación antes de habilitar cambios."}
+              : "Pedile a un administrador que revise el estado de facturación antes de cambiar el plan."}
           </p>
         )}
       </CardContent>

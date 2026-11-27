@@ -29,7 +29,7 @@ const summary = (): AnalyticsSummary => ({
 
 const tile = (title: string) => {
   const heading = screen.getByRole('heading', { name: title, exact: true, hidden: true });
-  return heading.closest('.group') as HTMLElement;
+  return heading.parentElement!.parentElement!.parentElement!;
 };
 
 afterEach(cleanup);
@@ -42,9 +42,9 @@ describe('OverviewDashboard period evidence', () => {
     expect(tile('Usuarios activos')).toHaveTextContent('89');
     expect(tile('Tiempo respuesta')).toHaveTextContent('3,7s');
     expect(tile('Conversión')).toHaveTextContent('22,5%');
-    expect(tile('Tickets abiertos')).toHaveTextContent('14');
-    expect(within(tile('Fuera de SLA')).getByText('6')).toBeInTheDocument();
-    expect(tile('Fuera de SLA')).not.toHaveTextContent('%');
+    expect(tile('Casos abiertos')).toHaveTextContent('14');
+    expect(within(tile('Plazo vencido')).getByText('6')).toBeInTheDocument();
+    expect(tile('Plazo vencido')).not.toHaveTextContent('%');
     expect(screen.getByRole('region', { name: 'Indicadores del período' })).not.toHaveTextContent(/12\.4%|8\.1%|5\.6%|4\.2%|▲|▼/);
   });
 
@@ -53,7 +53,7 @@ describe('OverviewDashboard period evidence', () => {
 
     expect(screen.getByText('Volumen de la serie').nextElementSibling).toHaveTextContent('645');
     expect(screen.getByText('Pico diario').nextElementSibling).toHaveTextContent('430 · 2026-10-08');
-    expect(screen.getByText('Categoría líder').nextElementSibling).toHaveTextContent('Reclamos · 61 tickets');
+    expect(screen.getByText('Tema con más casos').nextElementSibling).toHaveTextContent('Reclamos · 61 casos');
     expect(screen.queryByText('Volumen total')).not.toBeInTheDocument();
   });
 
@@ -63,7 +63,7 @@ describe('OverviewDashboard period evidence', () => {
 
     expect(disclosure.closest('details')).not.toHaveAttribute('open');
     expect(screen.getByText('Interacciones por voz')).not.toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Top categorías' }).compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Temas más frecuentes' }).compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(disclosure);
     expect(disclosure.closest('details')).toHaveAttribute('open');
     expect(screen.getByText('Interacciones por voz')).toBeVisible();
@@ -78,7 +78,7 @@ describe('OverviewDashboard period evidence', () => {
     data.kpis = { total_interactions: 15, active_users: 9, avg_response_time_s: 2 };
     render(<OverviewDashboard data={data} showSla showConversion />);
 
-    for (const title of ['Conversión', 'Tickets abiertos', 'Fuera de SLA', 'Interacciones por voz', 'Video / avatar', 'Finalización sin escribir', 'Uso de accesibilidad']) {
+    for (const title of ['Conversión', 'Casos abiertos', 'Plazo vencido', 'Interacciones por voz', 'Video / avatar', 'Finalización sin escribir', 'Uso de accesibilidad']) {
       expect(tile(title)).toHaveTextContent('No disponible');
       expect(tile(title)).not.toHaveTextContent(/0|%/);
     }
@@ -97,11 +97,14 @@ describe('OverviewDashboard period evidence', () => {
     render(<OverviewDashboard data={data} showSla showConversion />);
 
     expect(tile('Conversión')).toHaveTextContent('0%');
-    expect(tile('Fuera de SLA')).toHaveTextContent('0');
+    expect(tile('Plazo vencido')).toHaveTextContent('0');
     expect(tile('Interacciones por voz')).toHaveTextContent('0%');
     expect(screen.getByText('Volumen de la serie').nextElementSibling).toHaveTextContent('0');
     expect(screen.getByText('Pico diario').nextElementSibling).toHaveTextContent('0 · 2026-10-09');
-    expect(screen.getByText('Categoría líder').nextElementSibling).toHaveTextContent('Turnos · 0 tickets');
+    expect(screen.getByText('Tema con más casos').nextElementSibling).toHaveTextContent('Turnos · 0 casos');
+    expect(screen.getByText('Todavía no hay actividad en este período.')).toBeInTheDocument();
+    expect(screen.getByText('Todavía no hay casos clasificados en este período.')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Elegir otro período' })).toHaveLength(2);
     expect(screen.queryByText('No disponible')).not.toBeInTheDocument();
   });
 
@@ -114,18 +117,19 @@ describe('OverviewDashboard period evidence', () => {
     render(<OverviewDashboard data={data} showSla showConversion />);
 
     expect(tile('Conversión')).toHaveTextContent('No disponible');
-    expect(tile('Fuera de SLA')).toHaveTextContent('No disponible');
+    expect(tile('Plazo vencido')).toHaveTextContent('No disponible');
     expect(screen.getByText('Volumen de la serie').nextElementSibling).toHaveTextContent('No disponible');
     expect(screen.getByText('Pico diario').nextElementSibling).toHaveTextContent('No disponible');
-    expect(screen.getByText('Categoría líder').nextElementSibling).toHaveTextContent('No disponible');
-    expect(screen.getByText('No hay datos de volumen disponibles para este período.')).toBeInTheDocument();
-    expect(screen.getByText('No hay categorías disponibles para este período.')).toBeInTheDocument();
+    expect(screen.getByText('Tema con más casos').nextElementSibling).toHaveTextContent('No disponible');
+    expect(screen.getByText('Todavía no hay actividad en este período.')).toBeInTheDocument();
+    expect(screen.getByText('Todavía no hay casos clasificados en este período.')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Elegir otro período' })).toHaveLength(2);
   });
 
   it('only exposes conversion and SLA cards when their existing flags are enabled', () => {
     render(<OverviewDashboard data={summary()} />);
     expect(screen.queryByRole('heading', { name: 'Conversión' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Tickets abiertos' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Fuera de SLA' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Casos abiertos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Plazo vencido' })).not.toBeInTheDocument();
   });
 });

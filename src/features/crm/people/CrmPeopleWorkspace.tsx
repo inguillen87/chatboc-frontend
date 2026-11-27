@@ -159,8 +159,8 @@ const MetricSummary = ({
       >
         <dt
           className={cn(
-            "truncate font-semibold uppercase tracking-[0.12em] text-muted-foreground",
-            compact ? "text-[9px] leading-3" : "text-[11px]",
+            "truncate font-semibold text-muted-foreground",
+            compact ? "text-xs leading-4" : "text-sm",
           )}
         >
           {metric.label}
@@ -228,7 +228,7 @@ const viewItems: Array<{
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   { value: "personas", label: "Personas", icon: Users },
-  { value: "segmentos", label: "Segmentos", icon: Filter },
+  { value: "segmentos", label: "Grupos", icon: Filter },
   { value: "campanas", label: "Campañas", icon: Megaphone },
   { value: "actividad", label: "Actividad", icon: Activity },
 ];
@@ -288,15 +288,26 @@ const selectedTone = (score: number) => {
   return "border-amber-600/30 bg-amber-500/10 text-amber-900 dark:text-amber-100";
 };
 
-const EmptySelection = () => (
+const EmptySelection = ({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel: string;
+  onAction: () => void;
+}) => (
   <div className="flex h-full min-h-[420px] flex-col items-center justify-center px-8 text-center">
     <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
       <UserRound className="h-7 w-7 text-muted-foreground" />
     </div>
-    <h3 className="mt-4 font-semibold">Seleccioná una persona</h3>
+    <h3 className="mt-4 font-semibold">{title}</h3>
     <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-      El registro 360 concentra identidad, interacciones, casos y consentimiento sin abandonar la bandeja.
+      {description}
     </p>
+    <Button type="button" variant="outline" className="mt-4 min-h-11" onClick={onAction}>{actionLabel}</Button>
   </div>
 );
 
@@ -310,28 +321,27 @@ interface ContextPanelProps {
 const ContextPanel = ({ person, qualityScore, operationalSummary, formatDate }: ContextPanelProps) => (
   <div className="space-y-4" data-testid="crm-context-panel">
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Estado Persona 360</p>
-      <p className="mt-2 text-sm font-semibold leading-6">{operationalSummary.identityLabel}</p>
+      <p className="text-sm font-semibold leading-6">{operationalSummary.identityLabel}</p>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        Casos e interacciones se muestran únicamente cuando el backend publica relaciones exactas para este tenant.
+        Los casos y las interacciones aparecen sólo cuando el sistema confirma que pertenecen a esta persona y organización.
       </p>
     </div>
     <div className="rounded-xl border border-border/70 bg-background/50 p-3">
       {person.piiMasked ? (
         <div className="flex items-center justify-between gap-3 text-xs">
-          <span className="font-semibold text-muted-foreground">Calidad de datos operativa</span>
-          <Badge variant="outline">No evaluable · protegida</Badge>
+          <span className="font-semibold text-muted-foreground">Datos disponibles en la ficha</span>
+          <Badge variant="outline">No se puede evaluar · datos protegidos</Badge>
         </div>
       ) : (
         <>
           <div className="flex items-center justify-between gap-3 text-xs">
-            <span className="font-semibold text-muted-foreground">Calidad de datos operativa</span>
+            <span className="font-semibold text-muted-foreground">Datos disponibles en la ficha</span>
             <span className="font-mono font-bold">{qualityScore}%</span>
           </div>
           <div
             className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
             role="progressbar"
-            aria-label="Calidad de datos operativa de la persona"
+            aria-label="Datos disponibles en la ficha de la persona"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={qualityScore}
@@ -343,7 +353,7 @@ const ContextPanel = ({ person, qualityScore, operationalSummary, formatDate }: 
     </div>
     <dl className="grid gap-2 text-sm">
       <div className="rounded-xl border border-border/70 p-3">
-        <dt className="text-xs text-muted-foreground">Casos exactos</dt>
+        <dt className="text-xs text-muted-foreground">Casos vinculados</dt>
         <dd className="mt-1 font-semibold">{operationalSummary.casesLabel}</dd>
       </div>
       <div className="rounded-xl border border-border/70 p-3">
@@ -356,7 +366,7 @@ const ContextPanel = ({ person, qualityScore, operationalSummary, formatDate }: 
         </dd>
       </div>
       <div className="rounded-xl border border-border/70 p-3">
-        <dt className="text-xs text-muted-foreground">Responsable / SLA</dt>
+        <dt className="text-xs text-muted-foreground">Responsable y plazo</dt>
         <dd className="mt-1 font-semibold">{operationalSummary.ownerLabel}</dd>
         <dd className="mt-0.5 text-xs text-muted-foreground">
           {operationalSummary.slaLabel}
@@ -370,8 +380,8 @@ const ContextPanel = ({ person, qualityScore, operationalSummary, formatDate }: 
     </dl>
     <div className="rounded-xl border border-dashed border-border/70 p-3 text-xs leading-5 text-muted-foreground">
       {person.marketing
-        ? "El directorio declara consentimiento; alcance, fecha y evidencia requieren un contrato versionado antes de habilitar acciones."
-        : "No se interpreta la ausencia de un booleano como rechazo. Tampoco se habilita marketing sin evidencia publicada."}
+        ? "Hay un consentimiento declarado, pero faltan su alcance, fecha y comprobante. No habilites acciones hasta verificarlos."
+        : "No hay evidencia suficiente para habilitar comunicaciones promocionales."}
     </div>
   </div>
 );
@@ -394,7 +404,7 @@ const RecordNavigator = ({
 
   return (
     <div
-      className="flex h-8 shrink-0 items-center overflow-hidden rounded-lg border border-border/70 bg-background"
+      className="flex min-h-11 shrink-0 items-center overflow-hidden rounded-lg border border-border/70 bg-background"
       role="group"
       aria-label="Navegar personas filtradas"
       data-testid="crm-person-record-navigator"
@@ -403,7 +413,7 @@ const RecordNavigator = ({
         type="button"
         size="icon"
         variant="ghost"
-        className="h-8 w-8 rounded-none border-r border-border/70"
+        className="h-11 w-11 rounded-none border-r border-border/70"
         onClick={onPrevious}
         disabled={!hasCurrent || currentIndex === 0}
         aria-label="Persona anterior"
@@ -421,7 +431,7 @@ const RecordNavigator = ({
         type="button"
         size="icon"
         variant="ghost"
-        className="h-8 w-8 rounded-none border-l border-border/70"
+        className="h-11 w-11 rounded-none border-l border-border/70"
         onClick={onNext}
         disabled={!hasCurrent || currentIndex >= total - 1}
         aria-label="Persona siguiente"
@@ -596,20 +606,20 @@ export default function CrmPeopleWorkspace({
     ? String(contactHistory.data.casesTotal)
     : `${exactCases.length}+`;
   const caseCountSummary = contactHistory.data?.casesRejected
-    ? `${contactHistory.data.casesTotal} informados · ${exactCases.length} verificables`
+    ? `${contactHistory.data.casesTotal} informados · ${exactCases.length} confirmados`
     : contactHistory.data?.casesTotalIsExact
-      ? `${contactHistory.data.casesTotal} exactos`
+      ? `${contactHistory.data.casesTotal} vinculados`
       : contactHistory.data?.casesTruncated
-        ? `${exactCases.length} verificables · vista parcial`
-        : `${exactCases.length}+ verificables`;
+        ? `${exactCases.length} confirmados · vista parcial`
+        : `${exactCases.length}+ confirmados`;
   const caseActionLabel = !selectedPerson?.contactId
-    ? "Sin caso exacto"
+    ? "Sin caso vinculado"
     : caseActionLoading || contactHistory.isLoading
       ? "Verificando casos"
       : contactHistory.data && !casesContractVerified
         ? "Casos no disponibles"
         : hasVerifiedZeroCases
-          ? "Sin caso exacto"
+          ? "Sin caso vinculado"
           : hasOneAuthoritativeCase
             ? "Abrir caso"
             : casesContractVerified && (exactCases.length > 0 || (contactHistory.data?.casesTotal || 0) > 0)
@@ -717,6 +727,13 @@ export default function CrmPeopleWorkspace({
     [selectedIds, visiblePeople],
   );
   const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+  const hasActivePeopleFilters = Boolean(search.trim()) || marketingOnly || channelFilter !== "all" || queueView !== "all";
+  const clearPeopleFilters = React.useCallback(() => {
+    onSearchChange("");
+    onMarketingOnlyChange(false);
+    onChannelFilterChange?.("all");
+    onQueueViewChange("all");
+  }, [onChannelFilterChange, onMarketingOnlyChange, onQueueViewChange, onSearchChange]);
 
   const auxiliaryPanel =
     activeView === "segmentos"
@@ -727,21 +744,21 @@ export default function CrmPeopleWorkspace({
 
   const activeFilters = [
     queueView !== "all" ? `Vista: ${queueViewItems.find((item) => item.value === queueView)?.label}` : null,
-    marketingOnly ? "Con opt-in" : null,
+    marketingOnly ? "Con consentimiento" : null,
     channelFilter !== "all" ? `Canal: ${channelLabel(channelFilter)}` : null,
   ].filter((label): label is string => Boolean(label));
   const consentAndChannelControls = (
     <>
-      <label className={cn("flex items-center gap-2 rounded-lg border border-border/70", embedded ? "min-h-9 px-3 text-sm" : "h-9 px-3 text-sm")}>
+      <label className="flex min-h-11 items-center gap-2 rounded-lg border border-border/70 px-3 text-sm">
         <Checkbox checked={marketingOnly} onCheckedChange={(value) => onMarketingOnlyChange(Boolean(value))} />
-        Con opt-in
+        Con consentimiento
       </label>
       <Select
         value={channelFilter}
         onValueChange={(value) => onChannelFilterChange?.(value as CrmPeopleChannelFilter)}
         disabled={!onChannelFilterChange}
       >
-        <SelectTrigger className={cn("h-9 bg-background", embedded ? "w-full" : "w-[160px]")} aria-label="Filtrar personas por canal">
+        <SelectTrigger className={cn("min-h-11 bg-background", embedded ? "w-full" : "w-[160px]")} aria-label="Filtrar personas por canal">
           <SelectValue placeholder="Todos los canales" />
         </SelectTrigger>
         <SelectContent>
@@ -761,7 +778,7 @@ export default function CrmPeopleWorkspace({
       type="button"
       variant="ghost"
       size="sm"
-      className="hidden gap-2 xl:inline-flex"
+      className="hidden min-h-11 gap-2 xl:inline-flex"
       onClick={() => setContextOpen((current) => !current)}
       aria-label={contextOpen ? "Ocultar panel contextual" : "Mostrar panel contextual"}
     >
@@ -781,12 +798,12 @@ export default function CrmPeopleWorkspace({
     >
       {embedded ? (
         <label className="grid gap-1.5 text-sm font-medium">
-          Vista operativa
+          Grupo de personas
           <select
             value={queueView}
             onChange={(event) => onQueueViewChange(event.target.value as CrmPeopleQueueView)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-            aria-label="Vista operativa de personas"
+            className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+            aria-label="Grupo de personas"
           >
             {queueViewItems.map((item) => (
               <option key={item.value} value={item.value}>{item.label} ({queueViewCounts[item.value]})</option>
@@ -794,15 +811,15 @@ export default function CrmPeopleWorkspace({
           </select>
         </label>
       ) : (
-        <div className="flex min-w-0 items-center gap-1 overflow-x-auto" role="group" aria-label={hasMore ? `Vistas operativas sobre ${people.length} personas cargadas` : "Vistas operativas de personas"}>
-          <span className="mr-1 shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Vista</span>
+        <div className="flex min-w-0 items-center gap-1 overflow-x-auto" role="group" aria-label={hasMore ? `Grupos sobre ${people.length} personas cargadas` : "Grupos de personas"}>
+          <span className="mr-1 shrink-0 text-sm font-semibold text-muted-foreground">Mostrar</span>
           {queueViewItems.map((item) => (
             <Button
               key={item.value}
               type="button"
               size="sm"
               variant={queueView === item.value ? "secondary" : "ghost"}
-              className={cn("h-8 shrink-0 gap-1.5 px-2.5 text-xs", queueView === item.value && "bg-background text-foreground shadow-sm")}
+              className={cn("min-h-11 shrink-0 gap-1.5 px-2.5 text-sm", queueView === item.value && "bg-background text-foreground shadow-sm")}
               aria-pressed={queueView === item.value}
               onClick={() => onQueueViewChange(item.value)}
             >
@@ -814,7 +831,7 @@ export default function CrmPeopleWorkspace({
       )}
       {hasMore ? <Badge variant="outline" className="shrink-0">Vistas sobre {people.length} cargadas</Badge> : null}
       <div className={cn("gap-2", embedded ? "grid" : "flex flex-wrap items-center")}>
-        <label className={cn("flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 text-xs", embedded ? "min-h-9" : "h-8")}>
+        <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 text-sm">
           <Checkbox
             checked={allVisibleSelected ? true : selectedVisibleCount > 0 ? "indeterminate" : false}
             onCheckedChange={(checked) => onSetSelected(visibleIds, Boolean(checked))}
@@ -825,8 +842,8 @@ export default function CrmPeopleWorkspace({
         </label>
         <Select value={effectivePeopleSort} onValueChange={(value) => onPeopleSortChange(value as CrmPeopleSort)} disabled={hasMore}>
           <SelectTrigger
-            className={cn("bg-background text-xs", embedded ? "h-9 w-full" : "h-8 w-[178px]")}
-            aria-label={hasMore ? `Orden backend por actividad reciente sobre ${people.length} personas cargadas` : "Ordenar personas"}
+            className={cn("min-h-11 bg-background text-sm", embedded ? "w-full" : "w-[190px]")}
+            aria-label={hasMore ? `Orden del sistema por actividad reciente sobre ${people.length} personas cargadas` : "Ordenar personas"}
             title={hasMore ? "Nombre y calidad se habilitan al completar la carga del directorio." : undefined}
           >
             <SelectValue placeholder="Ordenar" />
@@ -865,22 +882,22 @@ export default function CrmPeopleWorkspace({
         >
           <div className={cn("min-w-0", embedded && "shrink-0")}>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary" data-testid="crm-organization-label">
-                CRM{organizationLabel ? ` · ${organizationLabel}` : ""}
+              <p className="text-sm text-muted-foreground" data-testid="crm-organization-label">
+                {organizationLabel ? `Organización: ${organizationLabel}` : "Personas de la organización"}
               </p>
               <Badge
                 variant={isConnected ? "default" : "outline"}
                 className={cn("gap-1.5", embedded && "px-1.5 sm:px-2.5")}
-                aria-label={isConnected ? "Transporte de eventos conectado" : "Actualización manual disponible"}
+                aria-label={isConnected ? "Actualización en vivo disponible" : "Actualización manual disponible"}
               >
                 <Activity className="h-3 w-3" />
                 <span className={cn(embedded && "sr-only sm:not-sr-only")}>
-                  {isConnected ? "Transporte conectado" : "Actualización manual"}
+                  {isConnected ? "Actualización en vivo" : "Actualización manual"}
                 </span>
               </Badge>
             </div>
             <h1 className={cn("mt-1 font-bold tracking-tight", embedded ? "text-base sm:text-lg md:text-xl" : "text-xl md:text-2xl")}>Personas y relaciones</h1>
-            <p className={cn("mt-1 text-sm text-muted-foreground", embedded && "hidden")}>Vista operativa compacta para encontrar, entender y actuar sobre cada contacto.</p>
+            <p className={cn("mt-1 text-sm text-muted-foreground", embedded && "hidden")}>Encontrá a una persona, revisá su información y elegí la próxima acción.</p>
           </div>
           {embedded ? (
             <MetricSummary
@@ -899,15 +916,15 @@ export default function CrmPeopleWorkspace({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 w-8 gap-2 p-0 sm:w-auto sm:px-3 2xl:hidden"
-                    aria-label="Ver indicadores CRM"
+                    className="min-h-11 min-w-11 gap-2 p-0 sm:w-auto sm:px-3 2xl:hidden"
+                    aria-label="Ver indicadores"
                   >
                     <BarChart3 className="h-4 w-4" />
                     <span className="sr-only sm:not-sr-only">Indicadores</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-[min(22rem,calc(100vw-1rem))] p-3">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="mb-2 text-sm font-semibold text-foreground">
                     Resumen del directorio
                   </p>
                   <MetricSummary
@@ -921,7 +938,7 @@ export default function CrmPeopleWorkspace({
             <Button
               variant="outline"
               size="sm"
-              className={cn("gap-2", embedded && "h-8 w-8 p-0 sm:w-auto sm:px-3")}
+              className={cn("min-h-11 gap-2", embedded && "min-w-11 p-0 sm:w-auto sm:px-3")}
               onClick={onRefresh}
               aria-label="Actualizar personas"
             >
@@ -931,7 +948,7 @@ export default function CrmPeopleWorkspace({
             <Button
               variant="outline"
               size="sm"
-              className={cn(embedded && "h-8 w-8 gap-1 p-0 sm:w-auto sm:px-3")}
+              className={cn("min-h-11", embedded && "min-w-11 gap-1 p-0 sm:w-auto sm:px-3")}
               onClick={onBack}
               aria-label="Volver al perfil"
             >
@@ -953,7 +970,7 @@ export default function CrmPeopleWorkspace({
             ? "grid grid-cols-4 gap-0.5 overflow-hidden p-0.5 sm:flex sm:gap-1 sm:overflow-x-auto"
             : "flex gap-1 overflow-x-auto p-1",
         )}
-        aria-label="Áreas del CRM"
+        aria-label="Secciones de personas"
         data-testid="crm-area-navigation"
       >
         {viewItems.map((item) => {
@@ -966,7 +983,7 @@ export default function CrmPeopleWorkspace({
               size="sm"
               variant={active ? "secondary" : "ghost"}
               className={cn(
-                "shrink-0 gap-2",
+                "min-h-11 shrink-0 gap-2",
                 embedded && "min-w-0 gap-1 px-1 text-[11px] sm:gap-2 sm:px-3 sm:text-sm",
                 active && "bg-primary/10 text-blue-700 dark:text-blue-300",
               )}
@@ -1002,14 +1019,14 @@ export default function CrmPeopleWorkspace({
                   value={search}
                   onChange={(event) => onSearchChange(event.target.value)}
                   placeholder="Buscar por nombre, email o teléfono"
-                  className="h-9 pl-9"
+                  className="min-h-11 pl-9"
                   aria-label="Buscar personas"
                 />
               </div>
               <select
                 value={selectedContactId || ""}
                 onChange={(event) => onSelectContact(event.target.value || null)}
-                className="h-9 max-w-full rounded-md border border-input bg-background px-3 text-sm lg:hidden"
+                className="min-h-11 max-w-full rounded-md border border-input bg-background px-3 text-sm lg:hidden"
                 aria-label="Seleccionar persona"
               >
                 {visiblePeople.length === 0 ? <option value="">Sin resultados</option> : null}
@@ -1025,7 +1042,7 @@ export default function CrmPeopleWorkspace({
               {!embedded ? consentAndChannelControls : (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" size="sm" className="h-9 gap-2" aria-label={`Filtros y vistas de personas${activeFilters.length ? `, ${activeFilters.length} activos` : ""}`}>
+                    <Button type="button" variant="outline" size="sm" className="min-h-11 gap-2" aria-label={`Filtros y vistas de personas${activeFilters.length ? `, ${activeFilters.length} activos` : ""}`}>
                       <Filter className="h-4 w-4" />
                       Filtros y vistas
                       {activeFilters.length ? <span className="rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary">{activeFilters.length}</span> : null}
@@ -1056,7 +1073,7 @@ export default function CrmPeopleWorkspace({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className={cn("gap-2", embedded && "h-8")}
+                  className="min-h-11 gap-2"
                   onClick={onLoadMore}
                   disabled={isLoadingMore}
                 >
@@ -1085,15 +1102,15 @@ export default function CrmPeopleWorkspace({
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" size="sm" variant="outline" className="h-8 gap-2" onClick={() => onViewChange("segmentos")}>
+                <Button type="button" size="sm" variant="outline" className="min-h-11 gap-2" onClick={() => onViewChange("segmentos")}>
                   <Filter className="h-3.5 w-3.5" />
-                  Analizar segmento
+                  Revisar grupo
                 </Button>
-                <Button type="button" size="sm" className="h-8 gap-2" onClick={() => onViewChange("campanas")}>
+                <Button type="button" size="sm" className="min-h-11 gap-2" onClick={() => onViewChange("campanas")}>
                   <Megaphone className="h-3.5 w-3.5" />
                   Preparar campaña
                 </Button>
-                <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={onClearSelected} aria-label="Limpiar selección">
+                <Button type="button" size="icon" variant="ghost" className="h-11 w-11" onClick={onClearSelected} aria-label="Limpiar selección">
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -1117,7 +1134,12 @@ export default function CrmPeopleWorkspace({
               <aside className="hidden min-h-0 border-r border-border/70 lg:block" aria-label="Lista de personas">
                 <div ref={listViewportRef} className="h-full overflow-y-auto">
                   {visiblePeople.length === 0 ? (
-                    <div className="p-6 text-center text-sm text-muted-foreground">No hay personas para los filtros aplicados.</div>
+                    <div className="flex flex-col items-center gap-3 p-6 text-center text-sm text-muted-foreground">
+                      <p>{hasActivePeopleFilters ? "No hay personas para los filtros aplicados." : "Todavía no hay personas para mostrar."}</p>
+                      <Button type="button" variant="outline" className="min-h-11" onClick={hasActivePeopleFilters ? clearPeopleFilters : onRefresh}>
+                        {hasActivePeopleFilters ? "Limpiar filtros" : "Actualizar lista"}
+                      </Button>
+                    </div>
                   ) : (
                     <div className="relative w-full" style={{ height: `${desktopList.getTotalSize()}px` }}>
                       {desktopList.getVirtualItems().map((virtualRow) => {
@@ -1202,7 +1224,18 @@ export default function CrmPeopleWorkspace({
               data-testid="crm-person-detail"
             >
               {!selectedPerson ? (
-                <EmptySelection />
+                <EmptySelection
+                  title={visiblePeople.length ? "Seleccioná una persona" : hasActivePeopleFilters ? "No hay coincidencias" : "Todavía no hay personas"}
+                  description={visiblePeople.length
+                    ? "Elegí a alguien de la lista para ver sus datos, actividad, casos y permisos."
+                    : hasActivePeopleFilters
+                      ? "Quitá los filtros para volver a ver la lista completa."
+                      : "Actualizá la lista para comprobar si ya hay personas disponibles."}
+                  actionLabel={visiblePeople.length ? "Ver la primera persona" : hasActivePeopleFilters ? "Limpiar filtros" : "Actualizar lista"}
+                  onAction={visiblePeople.length
+                    ? () => onSelectContact(getPersonKey(visiblePeople[0]))
+                    : hasActivePeopleFilters ? clearPeopleFilters : onRefresh}
+                />
               ) : (
                 <div className="flex h-full min-h-0 flex-col">
                   <header
@@ -1253,7 +1286,7 @@ export default function CrmPeopleWorkspace({
                           type="button"
                           size="sm"
                           variant={detailFocusMode ? "secondary" : "outline"}
-                          className={cn("hidden gap-2 lg:inline-flex", embedded && "h-8 w-8 p-0 2xl:w-auto 2xl:px-3")}
+                          className={cn("hidden min-h-11 gap-2 lg:inline-flex", embedded && "min-w-11 p-0 2xl:w-auto 2xl:px-3")}
                           onClick={() => setDetailFocusMode((current) => !current)}
                           aria-label={detailFocusMode ? "Volver a vista dividida" : "Ampliar ficha de la persona"}
                           aria-pressed={detailFocusMode}
@@ -1265,7 +1298,7 @@ export default function CrmPeopleWorkspace({
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button size="icon" variant="ghost" className={cn(embedded && "h-8 w-8")} aria-label="Más acciones">
+                            <Button size="icon" variant="ghost" className="h-11 w-11" aria-label="Más acciones">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -1304,7 +1337,7 @@ export default function CrmPeopleWorkspace({
                         <Button
                           size="icon"
                           variant="outline"
-                          className={cn("xl:hidden", embedded && "h-8 w-8")}
+                          className="h-11 w-11 xl:hidden"
                           aria-label="Abrir panel contextual"
                           onClick={() => setMobileContextOpen(true)}
                         >
@@ -1337,10 +1370,10 @@ export default function CrmPeopleWorkspace({
                       className={cn("border-b border-border/70 bg-card", embedded ? "overflow-hidden px-1 sm:overflow-x-auto sm:px-4" : "overflow-x-auto px-4")}
                       data-testid="crm-person-tabs"
                     >
-                      <TabsList className={cn("rounded-none bg-transparent p-0", embedded ? "grid h-10 w-full grid-cols-4 sm:flex sm:h-11 sm:w-max" : "h-11 w-max")}>
-                        <TabsTrigger value="resumen" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Resumen</TabsTrigger>
-                        <TabsTrigger value="interacciones" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Interacciones</TabsTrigger>
-                        <TabsTrigger value="casos" className={cn("gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>
+                      <TabsList className={cn("rounded-none bg-transparent p-0", embedded ? "grid h-11 w-full grid-cols-4 sm:flex sm:w-max" : "h-11 w-max")}>
+                        <TabsTrigger value="resumen" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-11 min-w-0 px-1 text-[10px] sm:px-3 sm:text-sm" : "h-11")}>Resumen</TabsTrigger>
+                        <TabsTrigger value="interacciones" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-11 min-w-0 px-1 text-[10px] sm:px-3 sm:text-sm" : "h-11")}>Interacciones</TabsTrigger>
+                        <TabsTrigger value="casos" className={cn("gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-11 min-w-0 px-1 text-[10px] sm:px-3 sm:text-sm" : "h-11")}>
                           Casos
                           {casesContractVerified && exactCases.length > 0 ? (
                             <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
@@ -1348,7 +1381,7 @@ export default function CrmPeopleWorkspace({
                             </span>
                           ) : null}
                         </TabsTrigger>
-                        <TabsTrigger value="consentimiento" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-10 min-w-0 px-1 text-[10px] sm:h-11 sm:px-3 sm:text-sm" : "h-11")}>Consentimiento</TabsTrigger>
+                        <TabsTrigger value="consentimiento" className={cn("rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none", embedded ? "h-11 min-w-0 px-1 text-[10px] sm:px-3 sm:text-sm" : "h-11")}>Consentimiento</TabsTrigger>
                       </TabsList>
                     </div>
                     <ScrollArea className="min-h-0 flex-1" data-testid="crm-person-scroll">
@@ -1363,7 +1396,7 @@ export default function CrmPeopleWorkspace({
                             </section>
                           ) : null}
                           <section className={cn("rounded-xl border border-border/70 bg-card", embedded ? "p-3 sm:p-4" : "p-4")}>
-                            <div className="flex items-center gap-2 text-sm font-semibold"><Target className="h-4 w-4 text-primary" />Resumen operativo</div>
+                            <div className="flex items-center gap-2 text-sm font-semibold"><Target className="h-4 w-4 text-primary" />Resumen de la persona</div>
                             <p className="mt-3 text-sm leading-6 text-muted-foreground">
                               {selectedPerson.resumen || selectedPerson.lastMessageExcerpt || selectedPerson.profileExcerpt || "Todavía no hay un resumen disponible. Se completa con actividad real del contacto."}
                             </p>
@@ -1378,7 +1411,7 @@ export default function CrmPeopleWorkspace({
                           </section>
                           <section
                             className={cn("rounded-xl border border-border/70 bg-card md:col-span-2", embedded ? "p-3 sm:p-4" : "p-4")}
-                            aria-label="Actividad y casos exactos de la persona"
+                            aria-label="Actividad y casos vinculados de la persona"
                             aria-busy={contactHistory.isLoading || contactHistory.isFetching}
                           >
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1402,14 +1435,14 @@ export default function CrmPeopleWorkspace({
                                   : "El registro no tiene una identidad persistida. No se buscan casos por nombre, teléfono ni email."}
                               </p>
                             ) : contactHistory.isLoading ? (
-                              <div className="mt-3 grid gap-3 md:grid-cols-2" aria-label="Cargando Persona 360">
+                              <div className="mt-3 grid gap-3 md:grid-cols-2" aria-label="Cargando actividad de la persona">
                                 <Skeleton className="h-24 w-full" />
                                 <Skeleton className="h-24 w-full" />
                               </div>
                             ) : contactHistory.error ? (
                               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3" role="alert">
-                                <p className="text-sm text-muted-foreground">No se pudo verificar el historial exacto.</p>
-                                <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => void contactHistory.refetch()}>
+                                <p className="text-sm text-muted-foreground">No se pudo verificar el historial de esta persona.</p>
+                                <Button size="sm" variant="outline" className="min-h-11 gap-1.5" onClick={() => void contactHistory.refetch()}>
                                   <RefreshCw className="h-3.5 w-3.5" />
                                   Reintentar
                                 </Button>
@@ -1417,7 +1450,7 @@ export default function CrmPeopleWorkspace({
                             ) : (
                               <div className="mt-3 grid gap-3 md:grid-cols-2">
                                 <div className="min-w-0 rounded-lg border border-border/60 bg-background/40 p-3">
-                                  <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Últimos eventos</h3>
+                                  <h3 className="text-sm font-semibold text-foreground">Últimos eventos</h3>
                                   {recentInteractions.length ? (
                                     <ol className="mt-2 divide-y divide-border/60">
                                       {recentInteractions.map((interaction, index) => (
@@ -1435,9 +1468,9 @@ export default function CrmPeopleWorkspace({
                                   )}
                                 </div>
                                 <div className="min-w-0 rounded-lg border border-border/60 bg-background/40 p-3">
-                                  <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Casos exactos recientes</h3>
+                                  <h3 className="text-sm font-semibold text-foreground">Casos vinculados recientes</h3>
                                   {contactHistory.data?.casesContractStatus !== "verified" ? (
-                                    <p className="mt-2 text-xs text-muted-foreground">El backend no publicó un contrato exacto compatible.</p>
+                                    <p className="mt-2 text-xs text-muted-foreground">El sistema todavía no confirmó casos vinculados.</p>
                                   ) : recentExactCases.length ? (
                                     <ul className="mt-2 divide-y divide-border/60">
                                       {recentExactCases.map((caseItem) => (
@@ -1453,7 +1486,7 @@ export default function CrmPeopleWorkspace({
                                             type="button"
                                             size="sm"
                                             variant="ghost"
-                                            className="h-7 shrink-0 px-2 text-xs"
+                                            className="min-h-11 shrink-0 px-3 text-xs"
                                             onClick={() => onOpenTicketDesk(caseItem.href)}
                                             aria-label={`Abrir caso ${caseItem.title}`}
                                           >
@@ -1463,7 +1496,7 @@ export default function CrmPeopleWorkspace({
                                       ))}
                                     </ul>
                                   ) : (
-                                    <p className="mt-2 text-xs text-muted-foreground">Sin caso exacto asociado.</p>
+                                    <p className="mt-2 text-xs text-muted-foreground">No hay casos vinculados recientes.</p>
                                   )}
                                 </div>
                               </div>
@@ -1504,7 +1537,7 @@ export default function CrmPeopleWorkspace({
                               <p className="text-sm font-semibold">{selectedPerson.piiMasked ? "Datos protegidos" : "Historial detallado no disponible"}</p>
                               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                                 {selectedPerson.piiMasked
-                                  ? "El detalle requiere permiso y una identidad resoluble publicada por el backend. No se inventan eventos para completar la vista."
+                                  ? "El detalle requiere permiso y una identidad confirmada por el sistema. No se completan eventos con datos supuestos."
                                   : "Este registro heredado todavía no tiene una identidad de contacto vinculada. No se inventan eventos para completar la vista."}
                               </p>
                             </div>
@@ -1526,7 +1559,7 @@ export default function CrmPeopleWorkspace({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="mt-3 gap-2"
+                                className="mt-3 min-h-11 gap-2"
                                 onClick={() => void contactHistory.refetch()}
                               >
                                 <RefreshCw className={cn("h-4 w-4", contactHistory.isFetching && "animate-spin")} />
@@ -1564,7 +1597,7 @@ export default function CrmPeopleWorkspace({
                             <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4" role="status">
                               <p className="text-sm font-semibold">Sin eventos publicados</p>
                               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                El backend no devolvió interacciones para esta persona. La fecha de alta y el resumen permanecen disponibles en la ficha.
+                                El sistema no informó interacciones para esta persona. La fecha de alta y el resumen siguen disponibles en la ficha.
                               </p>
                             </div>
                           )}
@@ -1574,7 +1607,7 @@ export default function CrmPeopleWorkspace({
                         <section
                           className="rounded-xl border border-border/70 bg-card p-4"
                           aria-busy={contactHistory.isLoading || contactHistory.isFetching}
-                          aria-label="Casos exactos del contacto"
+                          aria-label="Casos vinculados con la persona"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
@@ -1583,7 +1616,7 @@ export default function CrmPeopleWorkspace({
                                 Casos y solicitudes
                               </div>
                               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                                Solo relaciones exactas publicadas por el backend para este tenant.
+                                Se muestran sólo los casos que el sistema vinculó de forma segura con esta persona.
                               </p>
                             </div>
                             {casesContractVerified ? (
@@ -1595,7 +1628,7 @@ export default function CrmPeopleWorkspace({
 
                           {!selectedPerson.contactId ? (
                             <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4">
-                              <p className="text-sm font-semibold">{selectedPerson.piiMasked ? "Datos protegidos" : "Sin identidad CRM verificable"}</p>
+                              <p className="text-sm font-semibold">{selectedPerson.piiMasked ? "Datos protegidos" : "No se pudo identificar a esta persona"}</p>
                               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                                 {selectedPerson.piiMasked
                                   ? "El detalle requiere permiso. No se buscan casos por nombre, teléfono ni email enmascarados."
@@ -1610,34 +1643,54 @@ export default function CrmPeopleWorkspace({
                           ) : contactHistory.error ? (
                             <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4" role="alert">
                               <p className="text-sm font-semibold">No pudimos verificar los casos</p>
-                              <p className="mt-1 text-xs text-muted-foreground">{contactHistory.error}</p>
-                              <Button className="mt-3 gap-2" size="sm" variant="outline" onClick={() => void contactHistory.refetch()}>
+                              <p className="mt-1 text-xs text-muted-foreground">Volvé a consultar para recuperar esta información.</p>
+                              <Button className="mt-3 min-h-11 gap-2" size="sm" variant="outline" onClick={() => void contactHistory.refetch()}>
                                 <RefreshCw className="h-4 w-4" />
                                 Reintentar
                               </Button>
+                              <details className="mt-3 text-xs text-muted-foreground">
+                                <summary className="min-h-11 cursor-pointer py-3 font-medium text-foreground">Datos para soporte</summary>
+                                <p className="break-words">{contactHistory.error}</p>
+                              </details>
                             </div>
                           ) : !contactHistory.data ? (
-                            <p className="mt-4 text-sm text-muted-foreground">Verificando relaciones exactas...</p>
+                            <p className="mt-4 text-sm text-muted-foreground">Comprobando los casos vinculados...</p>
                           ) : contactHistory.data.casesContractStatus !== "verified" ? (
                             <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-                              <p className="text-sm font-semibold">Casos exactos no disponibles</p>
+                              <p className="text-sm font-semibold">No pudimos confirmar los casos vinculados</p>
                               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                                El backend no publicó el contrato crm.contact_cases.v1. No se realiza ninguna búsqueda aproximada.
+                                Volvé a consultar antes de tomar una decisión sobre esta persona.
                               </p>
+                              <Button className="mt-3 min-h-11 gap-2" size="sm" variant="outline" onClick={() => void contactHistory.refetch()}>
+                                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                                Volver a consultar
+                              </Button>
+                              <details className="mt-3 text-xs text-muted-foreground">
+                                <summary className="min-h-11 cursor-pointer py-3 font-medium text-foreground">Datos para soporte</summary>
+                                <p>El servicio no publicó el contrato crm.contact_cases.v1. No se realizó una búsqueda aproximada.</p>
+                              </details>
                             </div>
                           ) : hasVerifiedZeroCases ? (
                             <div className="mt-4 rounded-xl border border-dashed border-border/70 p-4">
-                              <p className="text-sm font-semibold">Sin caso exacto asociado</p>
+                              <p className="text-sm font-semibold">Esta persona no tiene casos vinculados</p>
                               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                                No existe una relación persistida por identidad de ticket para este contacto.
+                                Si esperabas encontrar uno, actualizá la consulta para comprobar si hubo cambios.
                               </p>
+                              <Button className="mt-3 min-h-11 gap-2" size="sm" variant="outline" onClick={() => void contactHistory.refetch()}>
+                                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                                Actualizar casos
+                              </Button>
                             </div>
                           ) : exactCases.length === 0 ? (
                             <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-                              <p className="text-sm font-semibold">Vínculos parciales sin apertura segura</p>
+                              <p className="text-sm font-semibold">Hay referencias que todavía no se pueden abrir</p>
                               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                                El backend informó referencias truncadas, inexactas o inválidas. No se abre ningún caso hasta contar con una identidad verificable.
+                                Actualizá la consulta antes de intentar revisar estos casos.
                               </p>
+                              <Button className="mt-3 min-h-11 gap-2" size="sm" variant="outline" onClick={() => void contactHistory.refetch()}>
+                                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                                Actualizar casos
+                              </Button>
                             </div>
                           ) : (
                             <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -1648,24 +1701,20 @@ export default function CrmPeopleWorkspace({
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                                      <p className="text-xs font-medium text-muted-foreground">
                                         {caseSourceLabel(caseItem)}
                                       </p>
                                       <h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{caseItem.title}</h3>
-                                      <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                                        {caseItem.sourceModel} · #{caseItem.ticketId}
-                                      </p>
                                     </div>
                                     <Button
                                       type="button"
                                       size="sm"
                                       variant="outline"
-                                      className="h-8 shrink-0 gap-1.5"
+                                      className="min-h-11 shrink-0 px-3"
                                       aria-label={`Abrir caso ${caseItem.title}`}
                                       onClick={() => onOpenTicketDesk(caseItem.href)}
                                     >
                                       Abrir
-                                      <ExternalLink className="h-3.5 w-3.5" />
                                     </Button>
                                   </div>
                                   <div className="mt-3 flex flex-wrap gap-1.5">
@@ -1676,20 +1725,25 @@ export default function CrmPeopleWorkspace({
                                   <p className="mt-auto pt-3 text-[11px] text-muted-foreground">
                                     Última actividad: {formatDate(caseItem.updatedAt || caseItem.createdAt)}
                                   </p>
+                                  <details className="mt-2 text-xs text-muted-foreground">
+                                    <summary className="min-h-11 cursor-pointer py-3 font-medium text-foreground">Datos para soporte</summary>
+                                    <p className="font-mono">{caseItem.sourceModel} · #{caseItem.ticketId}</p>
+                                  </details>
                                 </article>
                               ))}
                             </div>
                           )}
 
-                          {contactHistory.data?.casesRejected ? (
-                            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
-                              {contactHistory.data.casesRejected} referencia(s) inválida(s) fueron descartadas de forma segura.
-                            </p>
-                          ) : null}
-                          {contactHistory.data?.casesTruncated ? (
-                            <p className="mt-3 text-xs text-muted-foreground">
-                              La vista está limitada por el backend. Abrí el centro de reclamos para consultar el resto.
-                            </p>
+                          {contactHistory.data?.casesRejected || contactHistory.data?.casesTruncated ? (
+                            <details className="mt-3 text-xs text-muted-foreground">
+                              <summary className="min-h-11 cursor-pointer py-3 font-medium text-foreground">Datos para soporte</summary>
+                              {contactHistory.data?.casesRejected ? (
+                                <p>{contactHistory.data.casesRejected} referencia(s) inválida(s) fueron descartadas de forma segura.</p>
+                              ) : null}
+                              {contactHistory.data?.casesTruncated ? (
+                                <p>La respuesta del servicio está limitada. Abrí la sección de reclamos para consultar el resto.</p>
+                              ) : null}
+                            </details>
                           ) : null}
                         </section>
                       </TabsContent>
@@ -1698,7 +1752,7 @@ export default function CrmPeopleWorkspace({
                           <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-primary" />Privacidad y permisos</div>
                           {selectedPerson.piiMasked ? (
                             <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
-                              <div><p className="text-sm font-semibold">Datos personales</p><p className="text-xs text-muted-foreground">El directorio aplicó enmascaramiento por defecto; esta vista no solicitó PII completa.</p></div>
+                              <div><p className="text-sm font-semibold">Datos personales</p><p className="text-xs text-muted-foreground">El directorio protege esta información por defecto; esta vista no solicitó los datos completos.</p></div>
                               <Badge variant="outline">Protegidos</Badge>
                             </div>
                           ) : null}
@@ -1707,12 +1761,12 @@ export default function CrmPeopleWorkspace({
                               <p className="text-sm font-semibold">Marketing</p>
                               <p className="text-xs text-muted-foreground">
                                 {selectedPerson.marketing
-                                  ? "El directorio declara consentimiento; alcance, fecha y evidencia no están publicados en este contrato."
+                                  ? "El directorio declara consentimiento, pero todavía no informa su alcance, fecha ni comprobante."
                                   : "No se publicó evidencia de consentimiento ni de rechazo."}
                               </p>
                             </div>
                             <Badge variant={selectedPerson.marketing ? "default" : "outline"}>
-                              {selectedPerson.marketing ? "Declarado sin trazabilidad" : "Sin evidencia publicada"}
+                              {selectedPerson.marketing ? "Declarado, falta comprobante" : "Sin comprobante"}
                             </Badge>
                           </div>
                           <div className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-border/70 p-3"><div><p className="text-sm font-semibold">Canal WhatsApp</p><p className="text-xs text-muted-foreground">No se infiere a partir de un teléfono genérico.</p></div><Badge variant={hasExplicitWhatsApp(selectedPerson) ? "default" : "outline"}>{hasExplicitWhatsApp(selectedPerson) ? "Explícito" : "No verificado"}</Badge></div>
@@ -1754,8 +1808,8 @@ export default function CrmPeopleWorkspace({
       <Sheet open={mobileContextOpen} onOpenChange={setMobileContextOpen}>
         <SheetContent side="right" className="w-[92vw] overflow-y-auto sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Contexto operativo</SheetTitle>
-            <SheetDescription>Identidad, casos exactos, actividad, SLA y evidencia disponible.</SheetDescription>
+            <SheetTitle>Resumen de la persona</SheetTitle>
+            <SheetDescription>Identidad, casos, actividad, plazo y permisos disponibles.</SheetDescription>
           </SheetHeader>
           {selectedPerson && operationalSummary ? (
             <div className="mt-6">

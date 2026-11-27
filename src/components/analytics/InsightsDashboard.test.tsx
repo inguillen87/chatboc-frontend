@@ -28,7 +28,7 @@ describe('backend recommendations', () => {
 
   it.each([undefined, [], ['', '   '], [null, 15, {}] as unknown as string[]])('provides an actionable empty state without inventing evidence: %j', async (recommendations) => {
     open({ recommendations, onRefreshRecommendations: vi.fn() });
-    expect(await screen.findByText(/No hay recomendaciones disponibles para este alcance/)).toBeInTheDocument();
+    expect(await screen.findByText(/Todavía no hay recomendaciones/)).toBeInTheDocument();
     expect(screen.queryByText(/No se detectaron patrones|Patrones detectados por IA|15%|Lunes|Costo de envío/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Actualizar recomendaciones' })).toBeEnabled();
   });
@@ -44,9 +44,9 @@ describe('backend recommendations', () => {
     vi.mocked(analyticsService.getInsights).mockReturnValueOnce(new Promise(() => {}));
     const refresh = vi.fn();
     open({ recommendations: ['Revisar la cola del servicio'], onRefreshRecommendations: refresh });
-    expect(screen.getByText('Analizando datos...')).toBeInTheDocument();
+    expect(screen.getByText('Revisando la actividad...')).toBeInTheDocument();
     expect(screen.getByText('Revisar la cola del servicio')).toBeInTheDocument();
-    expect(screen.getByText('Recomendaciones en tiempo real')).toBeInTheDocument();
+    expect(screen.getByText('Qué conviene revisar ahora')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Actualizar recomendaciones' }));
     expect(refresh).toHaveBeenCalledTimes(1);
   });
@@ -54,7 +54,8 @@ describe('backend recommendations', () => {
   it('does not convert an insights read failure into an assertion of no unusual patterns', async () => {
     vi.mocked(analyticsService.getInsights).mockRejectedValueOnce(new Error('service unavailable'));
     open();
-    expect(await screen.findByText(/No hay hallazgos disponibles/)).toBeInTheDocument();
+    expect(await screen.findByText(/Todavía no hay recomendaciones/)).toBeInTheDocument();
+    expect(screen.queryByText('Hallazgos para revisar')).not.toBeInTheDocument();
     expect(screen.queryByText('No se detectaron patrones inusuales.')).not.toBeInTheDocument();
     expect(screen.queryByText(/15%|Lunes|Costo de envío/)).not.toBeInTheDocument();
   });

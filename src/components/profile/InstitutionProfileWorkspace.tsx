@@ -57,7 +57,7 @@ const sections: Array<{
   {
     id: "location",
     label: "Ubicación",
-    description: "Domicilio y coordenadas operativas",
+    description: "Domicilio y ubicación en el mapa",
     icon: MapPin,
   },
   {
@@ -69,13 +69,13 @@ const sections: Array<{
   {
     id: "channels",
     label: "Canales",
-    description: "WhatsApp, web e integraciones",
+    description: "WhatsApp, sitio web y otros canales",
     icon: Radio,
   },
   {
     id: "plan-security",
     label: "Plan y seguridad",
-    description: "Consumo, permisos y gobierno",
+    description: "Uso del plan, accesos y seguridad",
     icon: ShieldCheck,
   },
 ];
@@ -124,10 +124,7 @@ export default function InstitutionProfileWorkspace({
       <header className="shrink-0 border-b border-border/70 bg-muted/20 px-4 py-3 sm:px-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-              Perfil institucional
-            </p>
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h2 className="max-w-full break-words text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                 {institutionName || "Organización"}
               </h2>
@@ -141,11 +138,11 @@ export default function InstitutionProfileWorkspace({
               ) : null}
             </div>
             <p className="mt-1 hidden max-w-3xl text-sm leading-5 text-muted-foreground xl:block">
-              Configuración administrativa separada de la operación diaria. Cada sección guarda el mismo registro institucional.
+              Revisá la información que identifica a la organización y guardá los cambios al terminar.
             </p>
           </div>
           <Badge variant={isAdministrator ? "default" : "outline"} className="w-fit shrink-0 rounded-md">
-            {isAdministrator ? "Administración habilitada" : "Solo lectura operativa"}
+            {isAdministrator ? "Podés editar" : "Solo podés consultar"}
           </Badge>
         </div>
       </header>
@@ -210,8 +207,7 @@ export default function InstitutionProfileWorkspace({
 
         <section className="flex min-h-0 min-w-0 flex-col bg-background/35">
           <div className="shrink-0 border-b border-border/60 px-4 py-3 sm:px-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Configuración</p>
-            <h3 id={sectionHeadingId} className="mt-1 text-lg font-semibold text-foreground">{active.label}</h3>
+            <h3 id={sectionHeadingId} className="text-lg font-semibold text-foreground">{active.label}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{active.description}</p>
           </div>
           <fieldset
@@ -230,7 +226,7 @@ export default function InstitutionProfileWorkspace({
 
       <footer className="z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-border/70 bg-card/95 px-4 py-3 backdrop-blur lg:flex-row lg:items-center lg:justify-between sm:px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <p className="min-w-0 text-xs leading-5 text-muted-foreground">
-          Los cambios quedan auditados por la sesión y la organización activa.
+          Guardá para aplicar los cambios a la organización seleccionada.
         </p>
         <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
           <Button type="button" variant="outline" className="h-auto min-h-11 min-w-0 whitespace-normal px-2 !bg-background !text-foreground sm:px-4" onClick={onCancel} disabled={loading}>

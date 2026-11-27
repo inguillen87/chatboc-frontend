@@ -123,7 +123,7 @@ describe('AnalyticsPage scope routing', () => {
     const LocationProbe = () => <output data-testid="location">{useLocation().search}</output>;
     render(<MemoryRouter initialEntries={['/perfil?tab=analytics&tenant_slug=junin&focus=overview&view=overview&section=overview&range=30d&categoria=luminarias']}><AnalyticsPage /><LocationProbe /></MemoryRouter>);
     await screen.findByTestId('overview-count');
-    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Operaciones' }), { button: 0, ctrlKey: false });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Actividad y tareas' }), { button: 0, ctrlKey: false });
     expect(await screen.findByText('operations')).toBeInTheDocument();
     const params = new URLSearchParams(screen.getByTestId('location').textContent || '');
     expect(params.get('focus')).toBe('operations');
@@ -147,7 +147,7 @@ describe('AnalyticsPage scope routing', () => {
     expect(vi.mocked(analyticsService.getHub).mock.calls[0][0]).not.toHaveProperty('tenant_id');
     expect(enterpriseService.getLeadInteractions).not.toHaveBeenCalled();
     expect(enterpriseService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22 }), 'junin');
-    fireEvent.click(screen.getByRole('button', { name: 'Resumen ejecutivo IA' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear resumen automático' }));
     await waitFor(() => expect(enterpriseService.getExecutiveSummary).toHaveBeenCalled());
     expect(vi.mocked(enterpriseService.getExecutiveSummary).mock.calls[0][0]).not.toHaveProperty('tenant_id');
     expect(vi.mocked(enterpriseService.getExecutiveSummary).mock.calls[0][1]).toBe('junin');
@@ -362,7 +362,7 @@ describe('AnalyticsPage scope routing', () => {
 
     expect(screen.queryByRole('tab', { name: 'Mapas' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Mapas de calor/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Mapa y zonas/i }));
 
     await waitFor(() => {
       expect(screen.getByText('operations')).toBeInTheDocument();

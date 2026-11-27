@@ -67,11 +67,11 @@ describe('RealtimeHubDashboard', () => {
     render(<RealtimeHubDashboard data={realtimeHubFixture()} />);
 
     expect(screen.getByText('Encuestas y votaciones en vivo')).toBeInTheDocument();
-    expect(screen.getByText('Actividad en vivo')).toBeInTheDocument();
+    expect(screen.getByText('Hay actividad en vivo')).toBeInTheDocument();
     expect(screen.getByText('8 senales de participacion en los ultimos 30 minutos.')).toBeInTheDocument();
     expect(screen.getByText('Participaciones')).toBeInTheDocument();
-    expect(screen.getByText('Eventos voto')).toBeInTheDocument();
-    expect(screen.getByText('Engagement')).toBeInTheDocument();
+    expect(screen.getByText('Votos registrados')).toBeInTheDocument();
+    expect(screen.getByText('Interacciones')).toBeInTheDocument();
     expect(screen.getByText('Moderar comentarios')).toBeInTheDocument();
     expect(screen.getByText('Revisar resultados en vivo')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Moderar comentarios/i }).getAttribute('href')).toBe('/admin/encuestas?focus=comments');

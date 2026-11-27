@@ -205,10 +205,10 @@ describe('TerritorialMapAccessibleSheet', () => {
     expect(screen.getByRole('tab', { name: 'Corredores/celdas' })).toBeInTheDocument();
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Zonas/barrios' }), { button: 0, ctrlKey: false });
-    expect(screen.getByText('No hay agregaciones verificadas para esta dimensión y los filtros actuales.')).toBeInTheDocument();
+    expect(screen.getByText('No hay datos verificados para esta sección y los filtros actuales.')).toBeInTheDocument();
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Corredores/celdas' }), { button: 0, ctrlKey: false });
-    expect(screen.getByText('Esta segmentación está protegida por la política de privacidad del contrato.')).toBeInTheDocument();
+    expect(screen.getByText('Esta segmentación está protegida para evitar que se identifique a personas o ubicaciones particulares.')).toBeInTheDocument();
   });
 
   it('renders a truthful protected empty state instead of an empty sheet', () => {
@@ -222,7 +222,7 @@ describe('TerritorialMapAccessibleSheet', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Ver resumen territorial' }));
     expect(screen.getByTestId('territorial-list-privacy-notice')).toHaveTextContent('Vista territorial protegida');
-    expect(screen.getByText('No hay un resumen agregado disponible para esta combinación de filtros.')).toBeInTheDocument();
+    expect(screen.getByText('No hay un resumen disponible para esta combinación de filtros.')).toBeInTheDocument();
   });
 
   it('paginates long territorial lists instead of creating an endless panel', () => {

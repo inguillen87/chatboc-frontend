@@ -297,7 +297,7 @@ describe('TerritorialPendingLocationsInbox', () => {
     expect(await screen.findByText('Propuesta manual guardada para revisión.')).toBeInTheDocument();
     expect(await screen.findByText('Origen: propuesta manual · Pendiente de revisión')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aplicar coordenadas' })).toBeDisabled();
-    expect(screen.getByRole('heading', { name: 'Reclamo #419' })).toHaveFocus();
+    expect(screen.getByRole('heading', { name: 'Caso con ubicación pendiente' })).toHaveFocus();
     expect(mocks.propose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       tenantSlug: 'junin', tenantId: '4', jobId: 'geo-job-419',
       lat: -33.05, lng: -68.47, expectedAttemptCount: 3, confirmed: true,
@@ -392,7 +392,7 @@ describe('TerritorialPendingLocationsInbox', () => {
     mocks.getQueue.mockResolvedValue(adminQueue());
     mocks.getDetail.mockResolvedValueOnce(adminDetail());
     const before = renderInbox();
-    await screen.findByText('Propuesta geográfica');
+    await screen.findByText('Ubicación propuesta');
     expect(screen.queryByRole('button', { name: 'Proponer punto manual' })).not.toBeInTheDocument();
     before.unmount();
     mocks.getDetail.mockResolvedValueOnce(manualDetail()).mockResolvedValueOnce({ ...manualDetail(), tenantId: '5' });
@@ -410,8 +410,8 @@ describe('TerritorialPendingLocationsInbox', () => {
 
     renderInbox({ tenantSlug: 'junin', initialFacet: 'luminarias' });
 
-    expect(await screen.findByText('1 informadas')).toBeInTheDocument();
-    expect(await screen.findByText('Propuesta geográfica')).toBeInTheDocument();
+    expect(await screen.findByText('1 casos pendientes')).toBeInTheDocument();
+    expect(await screen.findByText('Ubicación propuesta')).toBeInTheDocument();
     expect(screen.queryByText(/742/)).not.toBeInTheDocument();
     expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
 
@@ -444,7 +444,7 @@ describe('TerritorialPendingLocationsInbox', () => {
     renderInbox();
 
     expect(await screen.findByText('Acceso administrativo requerido')).toBeInTheDocument();
-    expect(screen.getByText(/falla cerrada/i)).toBeInTheDocument();
+    expect(screen.getByText(/rol admin o superadmin/i)).toBeInTheDocument();
     expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
   });
 
@@ -460,7 +460,7 @@ describe('TerritorialPendingLocationsInbox', () => {
 
     expect(await screen.findByText('No pudimos cargar ubicaciones pendientes')).toBeInTheDocument();
     expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
-    expect(screen.queryByText('Modo lectura de respaldo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Consulta limitada')).not.toBeInTheDocument();
   });
 
   it('uses the heatmap only as an explicit read-only fallback when the endpoint is unavailable', async () => {
@@ -469,13 +469,13 @@ describe('TerritorialPendingLocationsInbox', () => {
 
     renderInbox({ tenantSlug: 'junin', initialFacet: 'luminarias' });
 
-    expect(await screen.findByText('Modo lectura de respaldo')).toBeInTheDocument();
-    expect(screen.getByText('2 informadas')).toBeInTheDocument();
+    expect(await screen.findByText('Consulta limitada')).toBeInTheDocument();
+    expect(screen.getByText('2 casos pendientes')).toBeInTheDocument();
     expect(screen.getAllByText('Corredor Plaza departamental')).not.toHaveLength(0);
     expect(screen.queryByText(/742/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aprobar ubicación' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Rechazar ubicación' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Actualizar cola' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Buscar casos pendientes' })).toBeDisabled();
     expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith({
       tenantSlug: 'junin',
       scope: 'municipio',
@@ -496,13 +496,13 @@ describe('TerritorialPendingLocationsInbox', () => {
     renderInbox({ tenantSlug: 'junin', initialFacet: 'luminarias' });
 
     expect(await screen.findByText('Pendientes detectadas sin alterar datos')).toBeInTheDocument();
-    expect(screen.getByText('34 informadas')).toBeInTheDocument();
-    expect(screen.getByText('34 con detalle seguro')).toBeInTheDocument();
+    expect(screen.getByText('34 casos pendientes')).toBeInTheDocument();
+    expect(screen.getByText('34 disponibles para revisar')).toBeInTheDocument();
     expect(screen.queryByText(/sin detalle publicado/)).not.toBeInTheDocument();
-    expect(screen.getAllByText('Reclamo #419')).not.toHaveLength(0);
+    expect(screen.getAllByText('Caso con ubicación pendiente')).not.toHaveLength(0);
     expect(screen.getAllByText('Centro')).not.toHaveLength(0);
-    expect(screen.getByRole('button', { name: 'Actualizar cola' })).toBeDisabled();
-    expect(screen.getByRole('link', { name: 'Abrir reclamo' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Buscar casos pendientes' })).toBeDisabled();
+    expect(screen.getByRole('link', { name: 'Abrir caso' })).toHaveAttribute(
       'href',
       expect.stringContaining('ticket_id=419'),
     );
@@ -520,7 +520,7 @@ describe('TerritorialPendingLocationsInbox', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Registrar decisión' }));
 
     expect(await screen.findByText('Conflicto de revisión')).toBeInTheDocument();
-    expect(screen.getByText(/actualizá la cola/i)).toBeInTheDocument();
+    expect(screen.getByText(/volvé a buscar los casos pendientes/i)).toBeInTheDocument();
   });
 
   it('consults the provider separately and requires confirmation before applying coordinates', async () => {
@@ -535,7 +535,7 @@ describe('TerritorialPendingLocationsInbox', () => {
     mocks.apply.mockResolvedValue({ action: 'apply' });
     renderInbox();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Consultar proveedor' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Buscar una ubicación' }));
     await waitFor(() => expect(mocks.resolve).toHaveBeenCalled());
     expect(mocks.resolve.mock.calls[0][0]).toEqual({
       tenantSlug: 'junin',
@@ -564,14 +564,14 @@ describe('TerritorialPendingLocationsInbox', () => {
     mocks.resolve.mockRejectedValue(new NetworkError('resultado incierto'));
     const firstRender = renderInbox();
 
-    const consult = await screen.findByRole('button', { name: 'Consultar proveedor' });
+    const consult = await screen.findByRole('button', { name: 'Buscar una ubicación' });
     fireEvent.click(consult);
     await waitFor(() => expect(mocks.resolve).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(consult).toBeEnabled());
 
     firstRender.unmount();
     renderInbox();
-    const consultAfterReload = await screen.findByRole('button', { name: 'Consultar proveedor' });
+    const consultAfterReload = await screen.findByRole('button', { name: 'Buscar una ubicación' });
     fireEvent.click(consultAfterReload);
     await waitFor(() => expect(mocks.resolve).toHaveBeenCalledTimes(2));
     expect(mocks.resolve.mock.calls[0][0].idempotencyKey).toBe(mocks.resolve.mock.calls[1][0].idempotencyKey);
@@ -590,14 +590,14 @@ describe('TerritorialPendingLocationsInbox', () => {
     mocks.sync.mockReturnValue(new Promise((resolve) => { resolveSync = resolve; }));
     renderInbox();
 
-    await screen.findByText('1 informadas');
-    const trigger = screen.getByRole('button', { name: 'Actualizar cola' });
+    await screen.findByText('1 casos pendientes');
+    const trigger = screen.getByRole('button', { name: 'Buscar casos pendientes' });
     await waitFor(() => expect(trigger).toBeEnabled());
     expect(mocks.sync).not.toHaveBeenCalled();
     fireEvent.click(trigger);
-    expect(screen.getByRole('heading', { name: 'Actualizar cola territorial' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar actualización' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar actualización' })).toBeDisabled());
+    expect(screen.getByRole('heading', { name: 'Buscar casos sin ubicación' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar búsqueda' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar búsqueda' })).toBeDisabled());
     expect(mocks.sync).toHaveBeenCalled();
     expect(mocks.sync.mock.calls[0][0]).toEqual({ tenantSlug: 'junin', idempotencyKey: 'geo-sync:ui-test-01234567' });
 
@@ -609,11 +609,10 @@ describe('TerritorialPendingLocationsInbox', () => {
       idempotentReplay: true,
     }));
 
-    expect(await screen.findByText('Cola actualizada')).toBeInTheDocument();
+    expect(await screen.findByText('Búsqueda terminada')).toBeInTheDocument();
     expect(screen.getByText('1 creadas')).toBeInTheDocument();
     expect(screen.getByText('3 existentes')).toBeInTheDocument();
-    expect(screen.getByText('Repetición idempotente')).toBeInTheDocument();
-    expect(screen.getByText(/sin proveedor · sin escritura/i)).toBeInTheDocument();
+    expect(screen.getByText(/resultado ya registrado.*sin consulta externa/i)).toBeInTheDocument();
   });
 
   it('keeps a sync conflict in the confirmation dialog', async () => {
@@ -621,13 +620,13 @@ describe('TerritorialPendingLocationsInbox', () => {
     mocks.sync.mockRejectedValue(new ApiError('sync in progress', 409));
     renderInbox();
 
-    await screen.findByText('1 informadas');
-    const trigger = screen.getByRole('button', { name: 'Actualizar cola' });
+    await screen.findByText('1 casos pendientes');
+    const trigger = screen.getByRole('button', { name: 'Buscar casos pendientes' });
     await waitFor(() => expect(trigger).toBeEnabled());
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar actualización' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar búsqueda' }));
 
-    expect(await screen.findByText('Actualización en conflicto')).toBeInTheDocument();
+    expect(await screen.findByText('Ya hay una búsqueda en curso')).toBeInTheDocument();
     expect(screen.getByText('sync in progress')).toBeInTheDocument();
   });
 
@@ -640,8 +639,8 @@ describe('TerritorialPendingLocationsInbox', () => {
 
     renderInbox();
 
-    expect(await screen.findByText('Hay pendientes, pero falta el detalle seguro')).toBeInTheDocument();
-    expect(screen.getByText(/informa 34 ubicaciones pendientes/i)).toBeInTheDocument();
-    expect(screen.getByText(/no se inventan filas ni domicilios/i)).toBeInTheDocument();
+    expect(await screen.findByText('Hay pendientes, pero falta información para revisarlas')).toBeInTheDocument();
+    expect(screen.getByText(/hay 34 ubicaciones pendientes/i)).toBeInTheDocument();
+    expect(screen.getByText(/no recibimos casos identificables/i)).toBeInTheDocument();
   });
 });

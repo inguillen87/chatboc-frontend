@@ -31,11 +31,11 @@ const METRICS: Array<{
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   { key: 'conversations', label: 'Conversaciones', icon: Activity },
-  { key: 'open_tickets', label: 'Tickets abiertos', icon: Ticket },
-  { key: 'overdue_tickets', label: 'Tickets vencidos', icon: Ticket },
+  { key: 'open_tickets', label: 'Casos abiertos', icon: Ticket },
+  { key: 'overdue_tickets', label: 'Casos con plazo vencido', icon: Ticket },
   { key: 'response_time', label: 'Primera respuesta', suffix: ' min', fallback: UNMEASURED, icon: Clock3 },
   { key: 'survey_responses', label: 'Respuestas encuestas', icon: BarChart3 },
-  { key: 'nps', label: 'NPS', icon: Smile },
+  { key: 'nps', label: 'Índice de recomendación', icon: Smile },
   { key: 'handoff_rate', label: 'Derivación humana', suffix: '%', fallback: UNMEASURED, icon: Activity },
 ];
 
@@ -81,7 +81,7 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
   if (overviewQuery.isLoading) {
     return (
       <div className="p-4">
-        <ViewState status="loading" description="Cargando resumen ejecutivo y KPIs operativos." />
+        <ViewState status="loading" description="Cargando el resumen de actividad y sus indicadores." />
       </div>
     );
   }
@@ -91,10 +91,10 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
         <ViewState
           status="partial"
-          title="Resumen analítico no disponible"
+          title="No pudimos cargar el resumen"
           description={getErrorMessage(overviewQuery.error, 'No pudimos cargar las estadísticas. Reintentá en unos segundos.')}
           action={
-            <Button type="button" variant="outline" onClick={() => void overviewQuery.refetch()}>
+            <Button type="button" variant="outline" className="min-h-11" onClick={() => void overviewQuery.refetch()}>
               <RefreshCw className="h-4 w-4" />
               Reintentar
             </Button>
@@ -108,7 +108,12 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
   if (!data || !hasAnyMetric) {
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
-        <ViewState status="empty" description="Todavía no hay suficientes datos para mostrar métricas." />
+        <ViewState
+          status="empty"
+          title="Todavía no hay actividad para resumir"
+          description="Los indicadores aparecerán cuando la organización registre sus primeros casos, conversaciones o respuestas."
+          action={<Button type="button" variant="outline" className="min-h-11" onClick={() => void overviewQuery.refetch()}>Volver a consultar</Button>}
+        />
         <OperationsDashboardPanel />
       </div>
     );
@@ -118,21 +123,20 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estadísticas</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Resumen ejecutivo</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">Actividad y resultados de la organización para decidir con datos disponibles.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Resumen de actividad</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">Revisá qué pasó y qué necesita atención con los datos disponibles.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!isOnline ? <Badge variant="destructive">Sin conexión</Badge> : null}
           {overviewQuery.isFetching ? <Badge variant="secondary">Actualizando</Badge> : null}
-          <Badge variant="outline">{availableMetrics}/{METRICS.length} métricas</Badge>
+          <Badge variant="outline">{availableMetrics} de {METRICS.length} indicadores disponibles</Badge>
         </div>
       </header>
 
       {missingMetrics > 0 ? (
         <ViewState
           status="partial"
-          title="Métricas parciales"
+          title="Hay indicadores sin datos"
           description="Algunos indicadores todavía no tienen datos verificables y se muestran sin valor."
           className="min-h-[120px]"
         />
@@ -161,12 +165,12 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Operaciones</CardTitle>
-            <CardDescription>Lectura de tickets y tiempos sin agregar supuestos de negocio.</CardDescription>
+            <CardTitle className="text-lg">Casos y plazos</CardTitle>
+            <CardDescription>Casos pendientes y tiempos de respuesta registrados.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <MetricRow label="Tickets abiertos" value={formatMetric(data.open_tickets)} />
-            <MetricRow label="Tickets vencidos" value={formatMetric(data.overdue_tickets)} />
+            <MetricRow label="Casos abiertos" value={formatMetric(data.open_tickets)} />
+            <MetricRow label="Casos con plazo vencido" value={formatMetric(data.overdue_tickets)} />
             <MetricRow label="Tiempo de primera respuesta" value={formatMetric(data.response_time, ' min', UNMEASURED)} />
             {inboxReply ? (
               <MetricRow
@@ -193,7 +197,7 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
               value={ticketSatisfaction?.state === 'observed' ? formatMetric(ticketSatisfaction.rated_ticket_count) : 'Sin datos'}
               detail={ticketSatisfaction?.detail}
             />
-            <MetricRow label="NPS" value={formatMetric(data.nps)} />
+            <MetricRow label="Índice de recomendación" value={formatMetric(data.nps)} />
             <MetricRow label="Tasa de derivación humana" value={formatMetric(data.handoff_rate, '%', UNMEASURED)} />
             {municipalHandoff ? (
               <MetricRow
