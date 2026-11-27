@@ -318,7 +318,7 @@ export default function DemoWorkspace({
             ) : null}
           </div>
 
-          <div className="max-h-[720px] min-h-[540px] overflow-y-auto rounded-[8px] border border-border bg-background p-3">
+          <div className="max-h-[720px] overflow-y-auto rounded-[8px] border border-border bg-background p-3">
             {loading ? (
               <div
                 className="flex min-h-[520px] flex-col rounded-[1rem] border border-border/60 bg-card/50 p-5"

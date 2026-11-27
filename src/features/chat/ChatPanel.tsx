@@ -1344,7 +1344,10 @@ function StandaloneChatPanel({
         audioContextKey={JSON.stringify(resolvedChatBootstrap)}
         disabled={!hasRuntimeChat || trialExhausted}
       />
-      <ConversationRating conversationId={conversationId} />
+      {/* Asking how the service went only makes sense once there was an exchange. */}
+      {messages.some((message) => message.role === 'user') && messages.some((message, index) => message.role === 'assistant' && messages.slice(0, index).some((earlier) => earlier.role === 'user')) ? (
+        <ConversationRating conversationId={conversationId} />
+      ) : null}
     </section>
   );
 }
