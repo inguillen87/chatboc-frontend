@@ -26,18 +26,13 @@ import {
   AlertTriangle,
   BarChart3,
   ClipboardList,
-  KeyRound,
-  Layers3,
-  MapPinned,
   PencilLine,
   Search,
   Settings,
   ShieldCheck,
   Sparkles,
   Store,
-  UserCog,
   UserPlus,
-  Users2,
 } from 'lucide-react';
 
 const EMPLOYEES_API_BASE = '/api/admin/employees';
@@ -83,11 +78,11 @@ const DEFAULT_ROLE_OPTIONS = ['empleado', 'operador', 'supervisor', 'analista', 
 const PERMISSION_GROUPS = [
   {
     id: 'tickets',
-    label: 'Tickets y atencion',
+    label: 'Casos y atención',
     icon: ClipboardList,
     items: [
-      { value: 'tickets_read', label: 'Ver tickets' },
-      { value: 'tickets_update', label: 'Responder y cambiar estado' },
+      { value: 'tickets_read', label: 'Ver casos' },
+      { value: 'tickets_update', label: 'Responder casos y cambiar su estado' },
       { value: 'tickets_assign', label: 'Asignar responsables' },
       { value: 'live_chat', label: 'Atender chat en vivo' },
     ],
@@ -97,7 +92,7 @@ const PERMISSION_GROUPS = [
     label: 'Reportes y encuestas',
     icon: BarChart3,
     items: [
-      { value: 'analytics.read', label: 'Ver analítica agregada' },
+      { value: 'analytics.read', label: 'Ver reportes generales' },
       { value: 'surveys_read', label: 'Ver encuestas' },
       { value: 'surveys_write', label: 'Crear y publicar encuestas' },
       { value: 'survey.pii.read', label: 'Ver respuestas con datos sensibles' },
@@ -121,7 +116,7 @@ const PERMISSION_GROUPS = [
     icon: ShieldCheck,
     items: [
       { value: 'education.guardians.read', label: 'Consultar perfiles familiares' },
-      { value: 'education.guardians.verify', label: 'Atestar identidad de tutores' },
+      { value: 'education.guardians.verify', label: 'Confirmar identidad de tutores' },
       { value: 'education.guardians.link', label: 'Vincular tutores y estudiantes' },
     ],
   },
@@ -130,8 +125,8 @@ const PERMISSION_GROUPS = [
     label: 'Equipo y configuracion',
     icon: Settings,
     items: [
-      { value: 'employees_read', label: 'Ver empleados' },
-      { value: 'employees_write', label: 'Crear y editar empleados' },
+      { value: 'employees_read', label: 'Ver personas del equipo' },
+      { value: 'employees_write', label: 'Sumar y editar personas del equipo' },
       { value: 'settings_read', label: 'Ver configuración' },
     ],
   },
@@ -148,8 +143,8 @@ const ROLE_TEMPLATES = [
   },
   {
     id: 'supervisor',
-    label: 'Supervisor operativo',
-    description: 'Asigna responsables y mira reportes.',
+    label: 'Supervisión del equipo',
+    description: 'Asigna responsables y consulta reportes.',
     roles: ['supervisor'],
     permisos: ['tickets_read', 'tickets_update', 'tickets_assign', 'analytics.read'],
     channels: ['whatsapp', 'web_demo_widget'],
@@ -165,7 +160,7 @@ const ROLE_TEMPLATES = [
   {
     id: 'surveys',
     label: 'Encuestas y reportes',
-    description: 'Crea encuestas y consulta resultados.',
+    description: 'Creá encuestas y consultá resultados.',
     roles: ['analista'],
     permisos: ['surveys_read', 'surveys_write', 'analytics.read'],
     channels: ['whatsapp', 'web_demo_widget'],
@@ -333,7 +328,7 @@ const normalizeInternalUser = (value: unknown, index = 0): InternalUser | null =
   const accesibilidad = isRecord(value.accesibilidad) ? value.accesibilidad : {};
   const rawScope = first(value, ['scope', 'employee_scope']) ?? first(accesibilidad, ['employee_scope', 'scope']);
   const id = first(value, ['id', 'user_id', 'employee_id']) as string | number | undefined;
-  const nombre = asString(first(value, ['nombre', 'name', 'display_name'])) ?? asString(value.email) ?? `empleado_${index + 1}`;
+  const nombre = asString(first(value, ['nombre', 'name', 'display_name'])) ?? asString(value.email) ?? `Persona sin nombre ${index + 1}`;
   return {
     id: id ?? nombre,
     nombre,
@@ -414,39 +409,14 @@ const toggleValue = (
   }
 };
 
-const TeamStatCard = ({
-  label,
-  value,
-  helper,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-  icon: React.ElementType;
-}) => (
-  <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm">
-    <CardContent className="relative p-4">
-      <div className="relative">
-        <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-          <Icon className="h-4 w-4" />
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-        <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{value}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
-      </div>
-    </CardContent>
-  </Card>
-);
-
 const CoverageColumn = ({
   title,
   items,
-  emptyLabel,
+  emptyMessage,
 }: {
   title: string;
   items: CoverageBucket[];
-  emptyLabel: string;
+  emptyMessage: string;
 }) => (
   <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
     <div className="mb-3 flex items-center justify-between">
@@ -458,11 +428,21 @@ const CoverageColumn = ({
     <div className="space-y-2">
       {items.slice(0, 7).map((item, index) => (
         <div key={`${title}-${item.id || index}`} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-sm">
-          <span className="truncate pr-3">{item.label || `${emptyLabel}_${index + 1}`}</span>
+          <span className="truncate pr-3">{item.label || `Dato sin nombre ${index + 1}`}</span>
           <Badge variant={item.count ? 'secondary' : 'outline'}>{item.count ? `${item.count}` : 'sin responsable'}</Badge>
         </div>
       ))}
-      {!items.length ? <p className="text-sm text-muted-foreground">Sin datos publicados por backend.</p> : null}
+      {!items.length ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+          <a
+            href="#sumar-persona"
+            className="inline-flex min-h-11 items-center rounded-md font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Configurar en una persona
+          </a>
+        </div>
+      ) : null}
     </div>
   </div>
 );
@@ -483,19 +463,20 @@ const OptionGroup = ({
   keepOne?: boolean;
 }) => (
   <div className="space-y-2">
-    <label className="text-sm font-medium">{label}</label>
-    <div className="flex min-h-11 flex-wrap gap-2 rounded-xl border border-border/70 bg-background p-2">
+    <p className="text-sm font-medium">{label}</p>
+    <div role="group" aria-label={label} className="flex min-h-11 flex-wrap gap-2 rounded-xl border border-border/70 bg-background p-2">
       {options.map((option) => {
         const active = selected.includes(option.value);
         return (
           <button
             key={option.value}
             type="button"
+            aria-pressed={active}
             onClick={() => {
               if (active && keepOne && selected.length <= 1) return;
               onToggle(option.value);
             }}
-            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+            className={`min-h-11 rounded-full border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
               active
                 ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                 : 'border-border bg-muted/30 text-foreground hover:border-primary/50'
@@ -533,17 +514,18 @@ const SearchableOptionGroup = ({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <label className="text-sm font-medium">{label}</label>
+        <p className="text-sm font-medium">{label}</p>
         <span className="text-xs text-muted-foreground">{selected.length} seleccionadas</span>
       </div>
       <div className="rounded-lg border border-border/70 bg-background">
         <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
           <Search className="h-4 w-4 text-muted-foreground" />
           <input
+            aria-label={`Buscar en ${label.toLowerCase()}`}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar categoría"
-            className="h-8 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="min-h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div className="max-h-48 overflow-y-auto p-2">
@@ -553,15 +535,16 @@ const SearchableOptionGroup = ({
               <button
                 key={option.value}
                 type="button"
+                aria-pressed={active}
                 onClick={() => onToggle(option.value)}
-                className={`mb-1 flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition ${
+                className={`mb-1 flex min-h-11 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   active
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-transparent bg-muted/20 text-foreground hover:border-border'
                 }`}
               >
                 <span className="truncate pr-3">{option.label}</span>
-                {active ? <ShieldCheck className="h-4 w-4 shrink-0" /> : null}
+                {active ? <ShieldCheck aria-hidden="true" className="h-4 w-4 shrink-0" /> : null}
               </button>
             );
           })}
@@ -581,7 +564,7 @@ const PermissionGroupSelector = ({
 }) => (
   <div className="space-y-3">
     <div className="flex items-center justify-between gap-3">
-      <label className="text-sm font-medium">Secciones y permisos</label>
+      <p className="text-sm font-medium">Secciones y permisos</p>
       <span className="text-xs text-muted-foreground">{selected.length} permisos activos</span>
     </div>
     <div className="grid gap-3 lg:grid-cols-2">
@@ -590,7 +573,7 @@ const PermissionGroupSelector = ({
         return (
           <div key={group.id} className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <Icon className="h-4 w-4 text-primary" />
+              <Icon aria-hidden="true" className="h-4 w-4 text-primary" />
               {group.label}
             </div>
             <div className="space-y-2">
@@ -600,15 +583,16 @@ const PermissionGroupSelector = ({
                   <button
                     key={item.value}
                     type="button"
+                    aria-pressed={active}
                     onClick={() => onToggle(item.value)}
-                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-xs font-medium transition ${
+                    className={`flex min-h-11 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                       active
                         ? 'border-primary bg-primary text-primary-foreground'
                         : 'border-border bg-muted/20 hover:border-primary/50'
                     }`}
                   >
                     <span>{item.label}</span>
-                    {active ? <ShieldCheck className="h-3.5 w-3.5" /> : null}
+                    {active ? <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" /> : null}
                   </button>
                 );
               })}
@@ -623,12 +607,11 @@ const PermissionGroupSelector = ({
 const ScopeBadges = ({ employee }: { employee: InternalUser }) => {
   const scope = employee.scope ?? normalizeScope(null);
   const entries = [
-    ...scope.categorias.map((item) => ({ key: `cat-${item}`, label: item, variant: 'secondary' as const })),
-    ...scope.zonas.map((item) => ({ key: `zona-${item}`, label: item, variant: 'outline' as const })),
-    ...scope.channels.map((item) => ({ key: `channel-${item}`, label: item, variant: 'outline' as const })),
-    ...scope.permisos.map((item) => ({ key: `permiso-${item}`, label: item, variant: 'outline' as const })),
+    ...scope.categorias.map((item) => ({ key: `cat-${item}`, label: `Tema: ${item}`, variant: 'secondary' as const })),
+    ...scope.zonas.map((item) => ({ key: `zona-${item}`, label: `Zona: ${item}`, variant: 'outline' as const })),
+    ...scope.channels.map((item) => ({ key: `channel-${item}`, label: `Canal: ${item.replace(/_/g, ' ')}`, variant: 'outline' as const })),
   ];
-  if (!entries.length) return <span className="text-xs italic text-muted-foreground">Sin alcance configurado</span>;
+  if (!entries.length) return <span className="text-sm text-muted-foreground">Todavía no se definió qué puede atender.</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {entries.map((item) => (
@@ -717,7 +700,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
       setRouting(routingData);
     } catch (err: unknown) {
       if (!isCurrent()) return;
-      setError(getErrorMessage(err, 'No pudimos cargar empleados ni categorías. Recargá la página e intentá de nuevo.'));
+      setError(getErrorMessage(err, 'No pudimos cargar el equipo ni los temas de atención. Recargá la página e intentá de nuevo.'));
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -728,7 +711,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
       void fetchData();
     } else {
       setLoading(false);
-      setError('No se pudo identificar el tenant.');
+      setError('No se pudo identificar la organización.');
     }
   }, [tenantSlug, fetchData]);
 
@@ -872,13 +855,13 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
         ) ?? null;
 
       setLastCreatedEmployee(createdEmployee);
-      toast.success('Empleado creado correctamente.');
+      toast.success('La persona se agregó al equipo.');
       await fetchData();
       resetCreateForm();
     } catch (err: unknown) {
       if (!scopeIsCurrent()) return;
       const backendMessage = getBackendErrorText(err);
-      toast.error(backendMessage || getErrorMessage(err, 'No pudimos crear el empleado. Revisá los datos e intentá otra vez.'));
+      toast.error(backendMessage || getErrorMessage(err, 'No pudimos sumar a la persona. Revisá los datos e intentá otra vez.'));
     }
   };
 
@@ -936,105 +919,86 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
       });
       if (!scopeIsCurrent()) return;
 
-      toast.success('Empleado actualizado.');
+      toast.success('Los datos de la persona se actualizaron.');
       setEditingUser(null);
       await fetchData();
     } catch (err: unknown) {
       if (!scopeIsCurrent()) return;
       const backendMessage = getBackendErrorText(err);
-      toast.error(backendMessage || getErrorMessage(err, 'No pudimos actualizar el empleado. Intentá otra vez.'));
+      toast.error(backendMessage || getErrorMessage(err, 'No pudimos actualizar a la persona. Intentá otra vez.'));
     }
   };
 
-  if (loading) return <div className="p-4">Cargando...</div>;
-  if (error) return <div className="p-4 text-destructive">{error}</div>;
+  if (loading) return <div role="status" className="p-4 text-muted-foreground">Cargando el equipo…</div>;
+  if (error) {
+    return (
+      <div role="alert" className="m-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+        <p className="text-sm text-destructive">{error}</p>
+        <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={() => void fetchData()}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 pb-8">
-      <div className="rounded-lg border border-border/60 bg-card p-6 shadow-sm">
-        <div className="space-y-5">
-          <Badge variant="outline" className="w-fit border-primary/20 bg-background/80 px-3 py-1 text-primary">
-            <UserCog className="mr-2 h-3.5 w-3.5" />
-            Equipo interno
-          </Badge>
-          <div>
-            <h2 className="text-3xl font-black tracking-tight text-foreground">Empleados, roles y permisos</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Creá usuarios internos y definí qué puede ver, qué reclamos atiende y desde qué canales trabaja. La configuración operativa queda en avanzado.
+      <section className="rounded-lg border border-border/60 bg-card p-6 shadow-sm">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-3xl">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Equipo y permisos</h1>
+            <p className="mt-2 text-base leading-7 text-muted-foreground">
+              Acá podés sumar personas, elegir qué casos atiende cada una y definir qué secciones puede usar.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="rounded-full px-3 py-1">{employees.length} empleados</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">{categories.length} temas de ruteo</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">{coverage ? `${uncoveredCategories.length} temas sin responsable` : 'Cobertura no disponible'}</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">{unassignedCount === null ? 'Asignación no disponible' : `${unassignedCount} tickets sin asignar`}</Badge>
-          </div>
+          <Button asChild className="min-h-11 shrink-0">
+            <a href="#sumar-persona">Sumar una persona</a>
+          </Button>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <TeamStatCard label="Empleados" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos" icon={Users2} />
-        <TeamStatCard label="Roles" value={roleOptions.length.toLocaleString('es-AR')} helper="Perfiles disponibles" icon={KeyRound} />
-        <TeamStatCard label="Temas de ruteo" value={categories.length.toLocaleString('es-AR')} helper="Catálogo y taxonomía publicados para asignar alcance" icon={Layers3} />
-        <TeamStatCard label="Sin asignar" value={unassignedCount === null ? 'No informado' : unassignedCount.toLocaleString('es-AR')} helper="Tickets abiertos sin responsable" icon={MapPinned} />
-      </div>
-
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="coverage">
-          <AccordionTrigger className="rounded-2xl border border-border/60 bg-card px-4 py-3 text-left hover:no-underline">
-            <span className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Diagnóstico avanzado de cobertura
-              {uncoveredCategories.length ? (
-                <Badge variant="outline" className="ml-2 rounded-full">
-                  {uncoveredCategories.length} sin responsable
-                </Badge>
-              ) : null}
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="pt-4">
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-              <Card className="overflow-hidden border-border/60 bg-background/85 shadow-sm">
-                <CardHeader className="border-b border-border/50">
-                  <CardTitle>Cobertura operativa</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
-                  <CoverageColumn title="Temas de ruteo" items={coverageCategories} emptyLabel="tema" />
-                  <CoverageColumn title="Zonas" items={coverageZones} emptyLabel="zona" />
-                  <CoverageColumn title="Canales" items={coverageChannels} emptyLabel="canal" />
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/60 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    Temas sin responsable
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {uncoveredCategories.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {uncoveredCategories.map((item) => (
-                        <Badge key={item.id || item.label} variant="outline" className="rounded-full px-3 py-1">
-                          {item.label || item.id}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{coverage ? 'No hay temas sin responsable publicados por el servidor.' : 'No pudimos verificar la cobertura. No se puede confirmar que todos los temas tengan responsable.'}</p>
-                  )}
-                </CardContent>
-              </Card>
+      {employees.length === 0 ? (
+        <section aria-labelledby="equipo-vacio" className="rounded-lg border border-border bg-card p-6">
+          <h2 id="equipo-vacio" className="text-xl font-semibold text-foreground">Todavía no hay personas en el equipo</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Sumá a la primera persona para asignarle casos, zonas, canales y permisos de acceso.
+          </p>
+          <Button asChild className="mt-4 min-h-11">
+            <a href="#sumar-persona">Sumar a la primera persona del equipo</a>
+          </Button>
+        </section>
+      ) : (
+        <section aria-labelledby="resumen-equipo" className="rounded-lg border border-border/70 bg-card p-5">
+          <h2 id="resumen-equipo" className="text-lg font-semibold text-foreground">Estado del equipo</h2>
+          <dl className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Personas</dt>
+              <dd className="mt-1 text-2xl font-semibold text-foreground">{employees.length.toLocaleString('es-AR')}</dd>
+              <p className="mt-1 text-sm text-muted-foreground">Con acceso al panel.</p>
             </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Temas de atención</dt>
+              <dd className="mt-1 text-2xl font-semibold text-foreground">{categories.length ? categories.length.toLocaleString('es-AR') : 'Todavía no hay'}</dd>
+              <p className="mt-1 text-sm text-muted-foreground">Disponibles para asignar.</p>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Temas sin responsable</dt>
+              <dd className="mt-1 text-2xl font-semibold text-foreground">{coverage ? uncoveredCategories.length ? uncoveredCategories.length.toLocaleString('es-AR') : 'Todos tienen responsable' : 'No se pudo comprobar'}</dd>
+              <p className="mt-1 text-sm text-muted-foreground">Revisá quién atiende cada tema.</p>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Casos sin responsable</dt>
+              <dd className="mt-1 text-2xl font-semibold text-foreground">{unassignedCount === null ? 'No se pudo comprobar' : unassignedCount ? unassignedCount.toLocaleString('es-AR') : 'Todos tienen responsable'}</dd>
+              <p className="mt-1 text-sm text-muted-foreground">Casos abiertos que esperan asignación.</p>
+            </div>
+          </dl>
+        </section>
+      )}
 
       {lastCreatedEmployee ? (
         <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle>Último empleado creado</CardTitle>
+            <CardTitle>Persona agregada</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
@@ -1046,41 +1010,41 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
         </Card>
       ) : null}
 
-      <Accordion type="single" collapsible className="w-full" defaultValue="new-employee">
+      <Accordion id="sumar-persona" type="single" collapsible className="w-full scroll-mt-6" defaultValue="new-employee">
         <AccordionItem value="new-employee">
-          <AccordionTrigger className="rounded-2xl px-4 py-3 text-left hover:no-underline">
+          <AccordionTrigger className="min-h-11 rounded-2xl px-4 py-3 text-left hover:no-underline">
             <span className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4 text-primary" />
-              Registrar nuevo empleado
+              <UserPlus aria-hidden="true" className="h-4 w-4 text-primary" />
+              Sumar una persona al equipo
             </span>
           </AccordionTrigger>
           <AccordionContent>
             <form onSubmit={handleCreate} className="space-y-5 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
               <section className="space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">1. Datos de acceso</p>
-                  <p className="text-xs text-muted-foreground">El empleado entra con este email y cambia la contraseña después.</p>
+                  <p className="text-sm font-semibold text-foreground">1. Acceso</p>
+                  <p className="text-xs text-muted-foreground">La persona entra con este email y cambia la contraseña después.</p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Nombre visible</label>
-                    <Input value={nombre} onChange={(event) => setNombre(event.target.value)} placeholder="Juan Pérez" required />
+                    <label htmlFor="new-team-name" className="text-sm font-medium">Nombre visible</label>
+                    <Input id="new-team-name" value={nombre} onChange={(event) => setNombre(event.target.value)} placeholder="Nombre y apellido" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Email de acceso</label>
-                    <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="juan@tenant.gob.ar" required />
+                    <label htmlFor="new-team-email" className="text-sm font-medium">Email de acceso</label>
+                    <Input id="new-team-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email institucional" autoComplete="email" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Contraseña temporal</label>
-                    <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                    <label htmlFor="new-team-password" className="text-sm font-medium">Contraseña temporal</label>
+                    <Input id="new-team-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required />
                   </div>
                 </div>
               </section>
 
               <section className="space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">2. Perfil de trabajo</p>
-                  <p className="text-xs text-muted-foreground">Elegí una plantilla y después ajustá lo necesario.</p>
+                  <p className="text-sm font-semibold text-foreground">2. Tareas y permisos</p>
+                  <p className="text-xs text-muted-foreground">Elegí el perfil más parecido a su tarea y después ajustá lo necesario.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   {ROLE_TEMPLATES.map((template) => {
@@ -1089,8 +1053,9 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                       <button
                         key={template.id}
                         type="button"
+                        aria-pressed={active}
                         onClick={() => applyCreateTemplate(template)}
-                        className={`rounded-xl border p-3 text-left transition ${
+                        className={`min-h-11 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                           active
                             ? 'border-primary bg-primary/10 text-primary'
                             : 'border-border bg-background hover:border-primary/50'
@@ -1103,26 +1068,26 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                   })}
                 </div>
                 <OptionGroup
-                  label="Rol del usuario"
+                  label="Rol de la persona"
                   options={roleOptions}
                   selected={roles}
                   keepOne
                   onToggle={(value) => toggleValue(value, roles, setRoles, { keepOne: true })}
-                  empty="El servidor no publicó roles adicionales."
+                  empty="No hay otros roles disponibles."
                 />
               </section>
 
               <section className="space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">3. Alcance operativo</p>
-                  <p className="text-xs text-muted-foreground">Seleccioná los temas publicados que va a atender. El catálogo se administra por separado.</p>
+                  <p className="text-sm font-semibold text-foreground">3. Qué va a atender</p>
+                  <p className="text-xs text-muted-foreground">Seleccioná los temas, canales y zonas que van a quedar a su cargo.</p>
                 </div>
                 <SearchableOptionGroup
-                  label="Qué reclamos atiende"
+                  label="Qué casos atiende"
                   options={categoryOptions}
                   selected={categoriaIds}
                   onToggle={(value) => toggleValue(value, categoriaIds, setCategoriaIds)}
-                  empty="No hay temas de ruteo publicados para esta organización."
+                  empty="Todavía no hay temas de atención disponibles."
                 />
                 <div className="grid gap-4 lg:grid-cols-2">
                   <OptionGroup
@@ -1130,22 +1095,22 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                     options={channelOptions}
                     selected={selectedChannels}
                     onToggle={(value) => toggleValue(value, selectedChannels, setSelectedChannels)}
-                    empty="Sin canales publicados."
+                    empty="Todavía no hay canales disponibles."
                   />
                   <OptionGroup
-                    label="Zonas operativas"
+                    label="Zonas"
                     options={zoneOptions}
                     selected={selectedZonas}
                     onToggle={(value) => toggleValue(value, selectedZonas, setSelectedZonas)}
-                    empty="Sin zonas configuradas."
+                    empty="Todavía no hay zonas disponibles."
                   />
                 </div>
               </section>
 
               <Accordion type="single" collapsible>
                 <AccordionItem value="permissions">
-                  <AccordionTrigger className="rounded-xl border border-border/60 bg-background px-4 py-3 text-sm hover:no-underline">
-                    Ajustar permisos finos
+                  <AccordionTrigger className="min-h-11 rounded-xl border border-border/60 bg-background px-4 py-3 text-sm hover:no-underline">
+                    Revisar permisos específicos
                     <Badge variant="outline" className="ml-2 rounded-full">{selectedPermisos.length} activos</Badge>
                   </AccordionTrigger>
                   <AccordionContent className="pt-4">
@@ -1157,9 +1122,9 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                 </AccordionItem>
               </Accordion>
 
-              <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
-                <UserPlus className="h-4 w-4" />
-                Crear empleado
+              <Button type="submit" className="min-h-11 w-full gap-2 rounded-xl sm:w-auto">
+                <UserPlus aria-hidden="true" className="h-4 w-4" />
+                Sumar al equipo
               </Button>
             </form>
           </AccordionContent>
@@ -1170,33 +1135,33 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
         <div className="rounded-2xl border border-border/60 bg-card p-4 text-card-foreground shadow-sm">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="flex items-center gap-2 text-lg font-semibold">
-              <PencilLine className="h-4 w-4 text-primary" />
-              Editar empleado: {editingUser.nombre}
+              <PencilLine aria-hidden="true" className="h-4 w-4 text-primary" />
+              Editar a {editingUser.nombre}
             </h3>
-            <Button variant="ghost" onClick={cancelEdit} className="w-full sm:w-auto">Cancelar</Button>
+            <Button variant="ghost" onClick={cancelEdit} className="min-h-11 w-full sm:w-auto">Cancelar</Button>
           </div>
           <form onSubmit={handleUpdate} className="space-y-5">
             <section className="space-y-3">
               <div>
-                <p className="text-sm font-semibold text-foreground">1. Datos de acceso</p>
+                  <p className="text-sm font-semibold text-foreground">1. Acceso</p>
                 <p className="text-xs text-muted-foreground">Actualizá el nombre visible o cambiá la contraseña temporal.</p>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Nombre visible</label>
-                  <Input value={editNombre} onChange={(event) => setEditNombre(event.target.value)} required />
+                  <label htmlFor="edit-team-name" className="text-sm font-medium">Nombre visible</label>
+                  <Input id="edit-team-name" value={editNombre} onChange={(event) => setEditNombre(event.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Nueva contraseña</label>
-                  <Input type="password" value={editPassword} onChange={(event) => setEditPassword(event.target.value)} placeholder="Dejar vacío para no cambiar" />
+                  <label htmlFor="edit-team-password" className="text-sm font-medium">Nueva contraseña</label>
+                  <Input id="edit-team-password" type="password" value={editPassword} onChange={(event) => setEditPassword(event.target.value)} placeholder="Dejá este campo vacío para conservarla" autoComplete="new-password" />
                 </div>
               </div>
             </section>
 
             <section className="space-y-3">
               <div>
-                <p className="text-sm font-semibold text-foreground">2. Perfil de trabajo</p>
-                <p className="text-xs text-muted-foreground">Usá una plantilla para no tocar permisos uno por uno.</p>
+                <p className="text-sm font-semibold text-foreground">2. Tareas y permisos</p>
+                <p className="text-xs text-muted-foreground">Usá un perfil como punto de partida y ajustá sólo lo necesario.</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {ROLE_TEMPLATES.map((template) => {
@@ -1205,8 +1170,9 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                     <button
                       key={template.id}
                       type="button"
+                      aria-pressed={active}
                       onClick={() => applyEditTemplate(template)}
-                      className={`rounded-xl border p-3 text-left transition ${
+                      className={`min-h-11 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                         active
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border bg-background hover:border-primary/50'
@@ -1218,31 +1184,31 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                   );
                 })}
               </div>
-              <OptionGroup label="Rol del usuario" options={roleOptions} selected={editRoles} keepOne onToggle={(value) => toggleValue(value, editRoles, setEditRoles, { keepOne: true })} empty="El servidor no publicó roles adicionales." />
+              <OptionGroup label="Rol de la persona" options={roleOptions} selected={editRoles} keepOne onToggle={(value) => toggleValue(value, editRoles, setEditRoles, { keepOne: true })} empty="No hay otros roles disponibles." />
             </section>
 
             <section className="space-y-3">
               <div>
-                <p className="text-sm font-semibold text-foreground">3. Alcance operativo</p>
-                <p className="text-xs text-muted-foreground">Asigná solo lo que este empleado debe atender.</p>
+                <p className="text-sm font-semibold text-foreground">3. Qué va a atender</p>
+                <p className="text-xs text-muted-foreground">Asigná sólo los casos, canales y zonas que van a quedar a su cargo.</p>
               </div>
               <SearchableOptionGroup
-                label="Qué reclamos atiende"
+                label="Qué casos atiende"
                 options={categoryOptions}
                 selected={editCategoriaIds}
                 onToggle={(value) => toggleValue(value, editCategoriaIds, setEditCategoriaIds)}
-                empty="Sin temas de ruteo publicados."
+                empty="Todavía no hay temas de atención disponibles."
               />
               <div className="grid gap-4 lg:grid-cols-2">
-                <OptionGroup label="Canales" options={channelOptions} selected={editChannels} onToggle={(value) => toggleValue(value, editChannels, setEditChannels)} empty="Sin canales publicados." />
-                <OptionGroup label="Zonas operativas" options={zoneOptions} selected={editZonas} onToggle={(value) => toggleValue(value, editZonas, setEditZonas)} empty="Sin zonas configuradas." />
+                <OptionGroup label="Canales" options={channelOptions} selected={editChannels} onToggle={(value) => toggleValue(value, editChannels, setEditChannels)} empty="Todavía no hay canales disponibles." />
+                <OptionGroup label="Zonas" options={zoneOptions} selected={editZonas} onToggle={(value) => toggleValue(value, editZonas, setEditZonas)} empty="Todavía no hay zonas disponibles." />
               </div>
             </section>
 
             <Accordion type="single" collapsible>
               <AccordionItem value="edit-permissions">
-                <AccordionTrigger className="rounded-xl border border-border/60 bg-background px-4 py-3 text-sm hover:no-underline">
-                  Ajustar permisos finos
+                <AccordionTrigger className="min-h-11 rounded-xl border border-border/60 bg-background px-4 py-3 text-sm hover:no-underline">
+                  Revisar permisos específicos
                   <Badge variant="outline" className="ml-2 rounded-full">{editPermisos.length} activos</Badge>
                 </AccordionTrigger>
                 <AccordionContent className="pt-4">
@@ -1252,11 +1218,11 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
             </Accordion>
 
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
-                <Sparkles className="h-4 w-4" />
+              <Button type="submit" className="min-h-11 w-full gap-2 rounded-xl sm:w-auto">
+                <Sparkles aria-hidden="true" className="h-4 w-4" />
                 Guardar cambios
               </Button>
-              <Button type="button" variant="outline" onClick={cancelEdit} className="w-full rounded-xl sm:w-auto">
+              <Button type="button" variant="outline" onClick={cancelEdit} className="min-h-11 w-full rounded-xl sm:w-auto">
                 Cancelar
               </Button>
             </div>
@@ -1264,18 +1230,19 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-sm">
+      <div id="directorio-equipo" className="scroll-mt-6 overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm">
         <div className="flex flex-col gap-3 border-b border-border/50 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="text-base font-semibold tracking-tight text-foreground">Directorio interno</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Roles, alcance operativo y carga abierta por empleado.</p>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">Personas del equipo</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Revisá qué puede atender cada persona y cuántos casos tiene abiertos.</p>
           </div>
-          <div className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-border bg-background px-3 lg:w-80">
-            <Search className="h-4 w-4 text-muted-foreground" />
+          <div className="flex min-h-11 min-w-0 items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 lg:w-80">
+            <Search aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
             <input
+              aria-label="Buscar una persona del equipo"
               value={employeeSearch}
               onChange={(event) => setEmployeeSearch(event.target.value)}
-              placeholder="Buscar empleado, categoría o permiso"
+              placeholder="Buscar por persona, tema o permiso"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
@@ -1287,8 +1254,8 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                 <th className="p-3 font-medium">Nombre</th>
                 <th className="p-3 font-medium">Email</th>
                 <th className="p-3 font-medium">Roles</th>
-                <th className="p-3 font-medium">Alcance</th>
-                <th className="p-3 font-medium">Tickets abiertos</th>
+                <th className="p-3 font-medium">Qué atiende</th>
+                <th className="p-3 font-medium">Casos abiertos</th>
                 <th className="p-3 text-right font-medium">Acciones</th>
               </tr>
             </thead>
@@ -1314,11 +1281,11 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                     <td className="p-3">
                       <ScopeBadges employee={employee} />
                     </td>
-                    <td className="p-3 font-semibold">{workload ?? '--'}</td>
+                    <td className="p-3 font-semibold">{workload ?? 'No informado'}</td>
                     <td className="p-3 text-right">
-                      <Button variant="ghost" size="sm" className="gap-2" onClick={() => startEdit(employee)}>
-                        <PencilLine className="h-4 w-4" />
-                        Actualizar alcance
+                      <Button variant="ghost" size="sm" className="min-h-11 gap-2" onClick={() => startEdit(employee)}>
+                        <PencilLine aria-hidden="true" className="h-4 w-4" />
+                        Editar responsabilidades
                       </Button>
                     </td>
                   </tr>
@@ -1326,8 +1293,19 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
               })}
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-4 text-center text-muted-foreground">
-                    {employees.length === 0 ? 'No hay empleados registrados.' : 'No hay empleados para ese filtro.'}
+                  <td colSpan={6} className="p-6 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      {employees.length === 0 ? 'Todavía no hay personas para mostrar.' : 'No encontramos personas con esa búsqueda.'}
+                    </p>
+                    {employees.length === 0 ? (
+                      <Button asChild className="mt-3 min-h-11">
+                        <a href="#sumar-persona">Sumar a la primera persona del equipo</a>
+                      </Button>
+                    ) : (
+                      <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={() => setEmployeeSearch('')}>
+                        Limpiar búsqueda
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ) : null}
@@ -1336,19 +1314,51 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </div>
 
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="routing-matrix">
-          <AccordionTrigger className="rounded-2xl border border-border/60 bg-card px-4 py-3 text-left hover:no-underline">
-            <span className="flex items-center gap-2">
-              <Settings className="h-4 w-4 text-primary" />
-              Matriz técnica de ruteo
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="pt-4">
+      <details id="datos-soporte" className="group overflow-hidden rounded-lg border border-border/60 bg-card">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+          <Settings aria-hidden="true" className="h-4 w-4 text-primary" />
+          Datos para soporte
+        </summary>
+        <div className="space-y-6 border-t border-border/60 p-4">
+          <p className="text-sm leading-6 text-muted-foreground">
+            Esta información ayuda a revisar cómo se asignan los temas, las zonas y los canales. No hace falta usarla para sumar o editar personas.
+          </p>
+          <section aria-labelledby="cobertura-soporte" className="space-y-4">
+            <div>
+              <h2 id="cobertura-soporte" className="text-base font-semibold text-foreground">Datos de asignación</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Muestra cuántas personas pueden atender cada opción informada.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <CoverageColumn title="Temas de atención" items={coverageCategories} emptyMessage="La organización todavía no informó temas para asignar." />
+              <CoverageColumn title="Zonas" items={coverageZones} emptyMessage="La organización todavía no informó zonas para asignar." />
+              <CoverageColumn title="Canales" items={coverageChannels} emptyMessage="La organización todavía no informó canales para asignar." />
+            </div>
+            <div className="rounded-lg border border-border/60 p-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <AlertTriangle aria-hidden="true" className="h-4 w-4 text-amber-600" />
+                Temas que todavía no tienen responsable
+              </h3>
+              {uncoveredCategories.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {uncoveredCategories.map((item) => (
+                    <Badge key={item.id || item.label} variant="outline" className="rounded-full px-3 py-1">
+                      {item.label || item.id}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {coverage ? 'Todos los temas informados tienen al menos una persona responsable.' : 'No pudimos comprobar quién atiende cada tema.'}
+                </p>
+              )}
+            </div>
+          </section>
+          <section aria-labelledby="asignacion-interna" className="space-y-3">
+            <h2 id="asignacion-interna" className="text-base font-semibold text-foreground">Configuración interna de asignaciones</h2>
             <EmployeeRoutingMatrix tenantSlug={tenantSlug} />
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+          </section>
+        </div>
+      </details>
     </div>
   );
 }

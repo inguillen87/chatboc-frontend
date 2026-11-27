@@ -12,7 +12,6 @@ import {
   Users,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -32,6 +31,11 @@ type Props = {
   tenantId?: number | null;
   tenantRevision?: string | number | null;
   scope?: BackofficeScope | null;
+  ordersEnabled?: boolean;
+  onOpenCases?: () => void;
+  onOpenOrders?: () => void;
+  onOpenContacts?: () => void;
+  onOpenTeam?: () => void;
   className?: string;
 };
 
@@ -41,6 +45,12 @@ type MetricCard = {
   detailLabel?: string;
   value?: number | string | null;
   description?: string;
+  emptyState?: {
+    message: string;
+    actionLabel: string;
+    action?: () => void;
+  };
+  zeroDescription?: string;
   tone?: 'default' | 'warning' | 'success';
   icon: React.ComponentType<{ className?: string }>;
 };
@@ -59,8 +69,26 @@ const emptyExecutiveState = (scopeKey: string): ExecutiveActionState => ({
 const formatValue = (value: unknown) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value.toLocaleString('es-AR');
   if (typeof value === 'string' && value.trim()) return value.trim();
-  return '—';
+  return 'Sin datos';
 };
+
+const clearPanelText = (value: string): string => value
+  .replace(/\bmatriz técnica de ruteo\b/gi, 'quién atiende cada tema')
+  .replace(/\btemas? de ruteo\b/gi, 'temas sin responsable definido')
+  .replace(/\bruteo\b/gi, 'asignación de responsables')
+  .replace(/\btickets\b/gi, 'casos')
+  .replace(/\bticket\b/gi, 'caso')
+  .replace(/\bSLA\b/g, 'plazo')
+  .replace(/\bsentimiento neutral\b/gi, 'el mensaje no muestra una emoción marcada')
+  .replace(/\bmonitoreo operativo\b/gi, 'seguimiento de la actividad')
+  .replace(/\bfoco del momento\b/gi, 'qué requiere atención ahora')
+  .replace(/\bcentro operativo\b/gi, 'actividad y pendientes')
+  .replace(/\btablero operativo\b/gi, 'actividad y resultados')
+  .replace(/\bcentro de mando\b/gi, 'resumen de casos y equipo')
+  .replace(/^requiere revisión$/i, 'Revisá los datos de esta recomendación')
+  .replace(/[_-]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
 
 const readText = (...values: unknown[]) => {
   for (const value of values) {
@@ -92,16 +120,16 @@ const normalizeRecommendation = (value: unknown, index: number) => {
   const record = toRecord(value);
   if (!record) {
     const text = readText(value);
-    return text ? { id: `text-${index}`, label: text, description: null } : null;
+    return text ? { id: `text-${index}`, label: clearPanelText(text), description: null } : null;
   }
 
-  const label = readText(record.label, record.title, record.name, record.action, record.id);
+  const label = readText(record.label, record.title, record.name, record.action);
   const description = readText(record.description, record.detail, record.reason, record.summary);
   if (!label && !description) return null;
   return {
     id: readText(record.id, record.key, label, index) ?? `recommendation-${index}`,
-    label: label ?? description ?? 'Recomendacion',
-    description,
+    label: clearPanelText(label ?? description ?? 'Recomendación'),
+    description: description ? clearPanelText(description) : null,
   };
 };
 
@@ -111,7 +139,18 @@ const toneClass: Record<NonNullable<MetricCard['tone']>, string> = {
   success: 'border-emerald-500/30 bg-emerald-500/10',
 };
 
-export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRevision, scope, className }: Props) {
+export default function BackofficeCommandCenter({
+  tenantSlug,
+  tenantId,
+  tenantRevision,
+  scope,
+  ordersEnabled = true,
+  onOpenCases,
+  onOpenOrders,
+  onOpenContacts,
+  onOpenTeam,
+  className,
+}: Props) {
   const { user, organizationProfileVerified } = useUser();
   const sessionRevision = captureChatbocSessionRevision();
   const actorId = user?.id == null ? null : String(user.id);
@@ -122,7 +161,16 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
   ]);
   const enabled = Boolean(tenantSlug && actorId && organizationProfileVerified);
   const canExport = enabled && typeof tenantId === 'number' && Number.isSafeInteger(tenantId) && tenantId > 0;
-  const readScopeKey = JSON.stringify([tenantSlug, tenantId, tenantRevision, scope, authorityKey, sessionRevision, organizationProfileVerified]);
+  const readScopeKey = JSON.stringify([
+    tenantSlug,
+    tenantId,
+    tenantRevision,
+    scope,
+    ordersEnabled,
+    authorityKey,
+    sessionRevision,
+    organizationProfileVerified,
+  ]);
   const readAuthorityRef = useRef({ key: readScopeKey, epoch: 0 });
   if (readAuthorityRef.current.key !== readScopeKey) {
     readAuthorityRef.current = { key: readScopeKey, epoch: readAuthorityRef.current.epoch + 1 };
@@ -140,7 +188,16 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
       && activeReadScopeRef.current === readScopeKey && readAuthorityRef.current.epoch === readEpoch
       && isChatbocSessionRevisionCurrent(sessionRevision),
   });
-  const readCacheScope = [tenantSlug, tenantId, tenantRevision, scope, authorityKey, sessionRevision, organizationProfileVerified];
+  const readCacheScope = [
+    tenantSlug,
+    tenantId,
+    tenantRevision,
+    scope,
+    ordersEnabled,
+    authorityKey,
+    sessionRevision,
+    organizationProfileVerified,
+  ];
   const executiveGenerationRef = useRef(0);
   const exportInFlightRef = useRef<{ isCurrent: () => boolean } | null>(null);
   const [executiveState, setExecutiveState] = useState(() => emptyExecutiveState(readScopeKey));
@@ -176,7 +233,7 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
   const ordersQuery = useQuery({
     queryKey: ['backoffice-orders-summary', ...readCacheScope],
     queryFn: ({ signal }) => backofficeService.getOrdersSummary(tenantSlug, readLifecycle(signal)),
-    enabled,
+    enabled: enabled && ordersEnabled,
     retry: 0,
     staleTime: 30_000,
   });
@@ -204,18 +261,33 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
     const team = teamQuery.data;
     const sla = readSlaCounts(inbox);
     const unassignedCases = readCount(inbox?.unassigned);
-    const unassignedOrders = readCount(orders?.summary?.unassigned);
-    const unassigned = unassignedCases !== null && unassignedOrders !== null
-      ? unassignedCases + unassignedOrders : null;
+    const unassignedOrders = ordersEnabled ? readCount(orders?.summary?.unassigned) : null;
+    const unassigned = ordersEnabled
+      ? unassignedCases !== null && unassignedOrders !== null
+        ? unassignedCases + unassignedOrders
+        : null
+      : unassignedCases;
 
-    return [
-      { id: 'open', label: 'Casos abiertos', value: inbox?.open, icon: Ticket, tone: inbox?.open ? 'warning' : 'default' },
+    const visibleMetrics: MetricCard[] = [
+      {
+        id: 'open',
+        label: 'Casos abiertos',
+        value: inbox?.open,
+        icon: Ticket,
+        tone: inbox?.open ? 'warning' : 'default',
+        emptyState: {
+          message: 'No hay casos abiertos en este momento.',
+          actionLabel: 'Revisar casos',
+          action: onOpenCases,
+        },
+      },
       {
         id: 'sla',
         label: 'Fuera de plazo o por vencer',
         detailLabel: 'Plazo vencido o por vencer',
         value: sla?.risk,
         description: sla ? `${sla.breached} vencidos y ${sla.atRisk} en riesgo.` : 'Todavía no hay datos suficientes para evaluar los plazos.',
+        zeroDescription: 'No hay casos confirmados fuera de plazo ni por vencer.',
         icon: AlertTriangle,
         tone: sla && sla.risk > 0 ? 'warning' : 'default',
       },
@@ -225,21 +297,72 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
         detailLabel: 'Plazo sin verificar',
         value: sla?.unknown,
         description: 'Casos abiertos sin un plazo de atención que se pueda comprobar.',
+        zeroDescription: 'Todos los casos abiertos tienen un plazo que se puede comprobar.',
         icon: AlertTriangle,
       },
-      { id: 'orders', label: 'Pedidos activos', value: readCount(orders?.summary?.active), icon: CheckCircle2 },
-      { id: 'contacts', label: 'Contactos', value: readCount(contacts?.summary?.total), icon: Users },
-      { id: 'team', label: 'Equipo activo', value: readCount(team?.summary?.active_employees), icon: ShieldCheck },
+      {
+        id: 'contacts',
+        label: 'Contactos',
+        value: readCount(contacts?.summary?.total),
+        icon: Users,
+        emptyState: {
+          message: 'Todavía no hay contactos registrados.',
+          actionLabel: 'Abrir contactos',
+          action: onOpenContacts,
+        },
+      },
+      {
+        id: 'team',
+        label: 'Personas en el equipo',
+        value: readCount(team?.summary?.active_employees),
+        icon: ShieldCheck,
+        emptyState: {
+          message: 'Todavía no hay personas activas en el equipo.',
+          actionLabel: 'Sumar a la primera persona del equipo',
+          action: onOpenTeam,
+        },
+      },
       {
         id: 'unassigned',
         label: 'Sin responsable',
         value: unassigned,
-        description: unassigned === null ? 'Falta información verificable de responsables para el total de casos y pedidos.' : undefined,
+        description: unassigned === null
+          ? ordersEnabled
+            ? 'Falta información para saber cuántos casos y pedidos no tienen responsable.'
+            : 'Falta información para saber cuántos casos no tienen responsable.'
+          : undefined,
+        zeroDescription: ordersEnabled
+          ? 'Todos los casos y pedidos informados tienen responsable.'
+          : 'Todos los casos informados tienen responsable.',
         icon: Users,
         tone: unassigned === null ? 'default' : unassigned > 0 ? 'warning' : 'success',
       },
     ];
-  }, [contactsQuery.data, inboxQuery.data, ordersQuery.data, teamQuery.data]);
+    if (ordersEnabled) {
+      visibleMetrics.splice(3, 0, {
+        id: 'orders',
+        label: 'Pedidos activos',
+        value: readCount(orders?.summary?.active),
+        icon: CheckCircle2,
+        emptyState: {
+          message: 'No hay pedidos activos en este momento.',
+          actionLabel: 'Revisar pedidos',
+          action: onOpenOrders,
+        },
+      });
+    }
+    return visibleMetrics;
+  }, [
+    contactsQuery.data,
+    inboxQuery.data,
+    onOpenCases,
+    onOpenContacts,
+    onOpenOrders,
+    onOpenTeam,
+    ordersEnabled,
+    ordersQuery.data,
+    teamQuery.data,
+  ]);
 
   const recommendations = useMemo(() => {
     const inboxViews = inboxQuery.data?.recommended_views ?? [];
@@ -253,13 +376,15 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
   }, [inboxQuery.data?.recommended_views, teamQuery.data?.assignment_recommendations]);
 
   const hasAnyData = metrics.some((metric) => metric.value !== undefined && metric.value !== null);
-  const isLoading = inboxQuery.isLoading || ordersQuery.isLoading || contactsQuery.isLoading || teamQuery.isLoading;
-  const hasError = inboxQuery.isError || ordersQuery.isError || contactsQuery.isError || teamQuery.isError;
+  const isLoading = inboxQuery.isLoading || contactsQuery.isLoading || teamQuery.isLoading
+    || (ordersEnabled && ordersQuery.isLoading);
+  const hasError = inboxQuery.isError || contactsQuery.isError || teamQuery.isError
+    || (ordersEnabled && ordersQuery.isError);
 
   const refresh = () => {
     if (!enabled || activeReadScopeRef.current !== readScopeKey) return;
     void inboxQuery.refetch();
-    void ordersQuery.refetch();
+    if (ordersEnabled) void ordersQuery.refetch();
     void contactsQuery.refetch();
     void teamQuery.refetch();
   };
@@ -276,14 +401,14 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
         filters: { scope },
         source_endpoints: [
           '/api/v2/backoffice/operations/inbox-summary',
-          '/api/v2/backoffice/orders/summary',
+          ...(ordersEnabled ? ['/api/v2/backoffice/orders/summary'] : []),
           '/api/v2/backoffice/contacts/summary',
           '/api/v2/backoffice/team/coverage-summary',
         ],
       }, { isCurrent: action.isCurrent });
       if (action.isCurrent()) action.update({ aiSummary: summary });
     } catch (error) {
-      if (action.isCurrent()) action.update({ aiError: getErrorMessage(error, 'No se pudo generar el resumen IA.') });
+      if (action.isCurrent()) action.update({ aiError: getErrorMessage(error, 'No pudimos preparar el resumen automático.') });
     } finally {
       if (action.isCurrent()) action.update({ isLoadingAi: false });
     }
@@ -307,7 +432,7 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
       }, { isCurrent: action.isCurrent });
       if (action.isCurrent()) downloadPrivateBackofficeExport(result, action.isCurrent);
     } catch (error) {
-      if (action.isCurrent()) action.update({ aiError: getErrorMessage(error, 'No se pudo preparar la exportacion.') });
+      if (action.isCurrent()) action.update({ aiError: getErrorMessage(error, 'No pudimos preparar el archivo. Intentá nuevamente.') });
     } finally {
       if (exportInFlightRef.current === attempt) exportInFlightRef.current = null;
       if (action.isCurrent()) action.update({ exporting: null });
@@ -317,56 +442,84 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
   if (!enabled) return null;
 
   return (
-    <section className={cn('space-y-4', className)} aria-label="Centro de mando administrativo">
+    <section className={cn('space-y-4', className)} aria-label="Resumen de casos y equipo">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-foreground">Prioridades y equipo</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">Qué requiere atención</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Revisá los casos, los plazos y el equipo. Actualizá los datos para ver los cambios más recientes.
+          </p>
         </div>
-        <Button type="button" variant="outline" onClick={refresh} disabled={isLoading || !enabled}>
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Actualizar
+        <Button type="button" variant="outline" className="min-h-11" onClick={refresh} disabled={isLoading || !enabled}>
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+          Actualizar datos
         </Button>
       </div>
 
       {hasError && !hasAnyData ? (
         <Card className="border-amber-500/30 bg-amber-500/10">
-          <CardContent className="p-4 text-sm text-amber-900 dark:text-amber-100">
-            Los endpoints backoffice no estan disponibles todavia para este tenant. La pantalla queda preparada para consumirlos sin datos locales.
+          <CardContent className="space-y-3 p-4 text-sm text-amber-950 dark:text-amber-50">
+            <div>
+              <p className="font-semibold">No pudimos cargar este resumen</p>
+              <p className="mt-1">Volvé a intentarlo para consultar los datos más recientes.</p>
+            </div>
+            <Button type="button" variant="outline" className="min-h-11" onClick={refresh} disabled={isLoading}>
+              Volver a intentar
+            </Button>
           </CardContent>
         </Card>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
-        {metrics.map((metric) => {
-          const Icon = metric.icon;
-          const value = formatValue(metric.value);
-          return (
-            <Card key={metric.id} className={cn('min-w-0 shadow-sm', toneClass[metric.tone ?? 'default'])}>
-              <CardHeader className="p-3 pb-2 sm:p-4 sm:pb-2">
-                <CardTitle className="flex items-start gap-2 text-xs font-medium leading-snug text-muted-foreground sm:text-sm">
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 break-words">{metric.label}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
-                <p className="break-words text-2xl font-semibold tabular-nums">
-                  {value === '—' ? <><span aria-hidden="true">—</span><span className="sr-only">Sin datos</span></> : value}
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
+        <div className={cn('grid sm:grid-cols-2 lg:grid-cols-3', ordersEnabled ? 'xl:grid-cols-7' : 'xl:grid-cols-6')}>
+          {metrics.map((metric) => {
+            const Icon = metric.icon;
+            const value = formatValue(metric.value);
+            const isEmpty = metric.value === 0 && Boolean(metric.emptyState);
+            return (
+              <article
+                key={metric.id}
+                className={cn(
+                  'min-w-0 space-y-2 border-b border-border/60 p-4 sm:border-r',
+                  toneClass[metric.tone ?? 'default'],
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <h3 className="min-w-0 break-words text-sm font-medium leading-snug text-muted-foreground">
+                    {metric.label}
+                  </h3>
+                </div>
+                <p className={cn('break-words font-semibold tabular-nums', value === 'Sin datos' ? 'text-base' : 'text-2xl')}>
+                  {value}
                 </p>
-              </CardContent>
-            </Card>
-          );
-        })}
+                {isEmpty ? (
+                  <div className="space-y-2">
+                    <p className="text-xs leading-5 text-muted-foreground">{metric.emptyState?.message}</p>
+                    {metric.emptyState?.action ? (
+                      <Button type="button" variant="link" className="min-h-11 h-auto justify-start whitespace-normal p-0 text-left" onClick={metric.emptyState.action}>
+                        {metric.emptyState.actionLabel}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : metric.value === 0 && metric.zeroDescription ? (
+                  <p className="text-xs leading-5 text-muted-foreground">{metric.zeroDescription}</p>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
       </div>
 
       <details key={readScopeKey} className="rounded-lg border border-border/70 bg-muted/20 px-3 text-sm text-muted-foreground">
-        <summary tabIndex={0} className="cursor-pointer select-none py-3 font-medium text-foreground focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-          Detalle de los indicadores
+        <summary tabIndex={0} className="min-h-11 cursor-pointer select-none py-3 font-medium text-foreground focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          Datos para soporte
         </summary>
         <div className="space-y-3 pb-3">
           <p>
-            Información operativa confirmada. Los indicadores sin datos permanecen vacíos, sin completar valores por estimación.
+            Estos valores provienen de información confirmada. Si falta un dato, no lo completamos con una estimación.
           </p>
-          <p>— indica que no hay datos disponibles; 0 es un valor informado.</p>
+          <p>“Sin datos” significa que la fuente no informó un valor; 0 es un valor confirmado.</p>
           <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {metrics.filter((metric) => metric.description).map((metric) => (
               <div key={metric.id}>
@@ -379,10 +532,10 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
       </details>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <Card className="shadow-sm">
+        <Card className="border-border/70 shadow-none">
           <CardHeader>
-            <CardTitle className="text-lg">Acciones recomendadas</CardTitle>
-            <CardDescription>Solo se muestran acciones disponibles para este perfil y período.</CardDescription>
+            <CardTitle className="text-lg">Qué conviene revisar</CardTitle>
+            <CardDescription>Estas sugerencias se basan en la información disponible para tu perfil y el período elegido.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {recommendations.length > 0 ? (
@@ -393,54 +546,62 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
                 </div>
               ))
             ) : (
-              <p className="rounded-lg border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
-                No hay acciones recomendadas para este período.
-              </p>
+              <div className="space-y-3 rounded-lg border bg-muted/20 px-3 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Todavía no hay sugerencias para este período. Actualizá los datos para volver a comprobarlo.
+                </p>
+                <Button type="button" variant="outline" className="min-h-11" onClick={refresh} disabled={isLoading}>
+                  Actualizar sugerencias
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
+        <Card className="border-border/70 shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Brain className="h-5 w-5 text-primary" />
-              IA ejecutiva y exportaciones
+              <Brain className="h-5 w-5 text-primary" aria-hidden="true" />
+              Preparar un resumen o descargar datos
             </CardTitle>
-            <CardDescription>Resumen y archivos generados desde filtros reales.</CardDescription>
+            <CardDescription>Creá un resumen automático o descargá la información que estás viendo.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={requestAiSummary} disabled={isLoadingAi}>
-                {isLoadingAi ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                Resumen IA
+              <Button type="button" className="min-h-11" onClick={requestAiSummary} disabled={isLoadingAi}>
+                {isLoadingAi ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Brain className="h-4 w-4" aria-hidden="true" />}
+                Crear resumen
               </Button>
-              <Button type="button" variant="outline" onClick={() => void requestExport('tickets', 'pdf')} disabled={exporting !== null || !canExport}>
-                <Download className="h-4 w-4" />
-                PDF casos
+              <Button type="button" variant="outline" className="min-h-11" onClick={() => void requestExport('tickets', 'pdf')} disabled={exporting !== null || !canExport}>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Descargar casos en PDF
               </Button>
-              <Button type="button" variant="outline" onClick={() => void requestExport('contacts', 'csv')} disabled={exporting !== null || !canExport}>
-                <Download className="h-4 w-4" />
-                CSV contactos
+              <Button type="button" variant="outline" className="min-h-11" onClick={() => void requestExport('contacts', 'csv')} disabled={exporting !== null || !canExport}>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Descargar contactos en CSV
               </Button>
             </div>
             {!canExport ? <p role="status" className="text-xs text-muted-foreground">
               Verificamos la organización seleccionada antes de habilitar la descarga de reportes.
             </p> : null}
 
-            {exporting ? <Badge variant="secondary" role="status">Preparando {exporting}</Badge> : null}
+            {exporting ? <p role="status" className="text-sm text-muted-foreground">Preparando el archivo…</p> : null}
             {aiError ? <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{aiError}</p> : null}
             {aiSummary ? (
               <div className="space-y-3 rounded-lg border bg-background px-3 py-3">
-                {aiSummary.headline ? <p className="font-semibold text-foreground">{aiSummary.headline}</p> : null}
-                {aiSummary.confidence !== undefined ? (
-                  <Badge variant="outline">Confianza: {String(aiSummary.confidence)}</Badge>
-                ) : null}
-                {Array.isArray(aiSummary.data_quality_notes) && aiSummary.data_quality_notes.length > 0 ? (
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    {aiSummary.data_quality_notes.map((note, index) => (
-                      <p key={`${String(note)}-${index}`}>{String(note)}</p>
-                    ))}
-                  </div>
+                {aiSummary.headline ? <p className="font-semibold text-foreground">{clearPanelText(aiSummary.headline)}</p> : null}
+                {aiSummary.confidence !== undefined || (Array.isArray(aiSummary.data_quality_notes) && aiSummary.data_quality_notes.length > 0) ? (
+                  <details className="text-sm text-muted-foreground">
+                    <summary className="min-h-11 cursor-pointer py-3 font-medium text-foreground focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      Datos para soporte
+                    </summary>
+                    <div className="space-y-1 pb-2">
+                      {aiSummary.confidence !== undefined ? <p>Nivel informado por el análisis: {String(aiSummary.confidence)}</p> : null}
+                      {Array.isArray(aiSummary.data_quality_notes) ? aiSummary.data_quality_notes.map((note, index) => (
+                        <p key={`${String(note)}-${index}`}>{String(note)}</p>
+                      )) : null}
+                    </div>
+                  </details>
                 ) : null}
               </div>
             ) : null}

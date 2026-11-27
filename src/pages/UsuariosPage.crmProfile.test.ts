@@ -37,7 +37,7 @@ describe('UsuariosPage CRM profile intelligence', () => {
     expect(getCrmOperationalDataQualityScore(baseContact)).toBe(100);
     expect(canDeepLinkCrmPerson(baseContact)).toBe(true);
     expect(crmProfileTone(100).label).toBe('Calidad alta');
-    expect(resolveCrmNextAction(baseContact)).toBe('Registro operativo disponible');
+    expect(resolveCrmNextAction(baseContact)).toBe('Revisar la ficha y su actividad');
 
     const withoutCommercialProfile = {
       ...baseContact,
@@ -48,7 +48,7 @@ describe('UsuariosPage CRM profile intelligence', () => {
     };
 
     expect(getCrmOperationalDataQualityScore(withoutCommercialProfile)).toBe(100);
-    expect(resolveCrmNextAction(withoutCommercialProfile)).toBe('Registro operativo disponible');
+    expect(resolveCrmNextAction(withoutCommercialProfile)).toBe('Revisar la ficha y su actividad');
   });
 
   it('prioritizes an exact CRM identity before contact data polish', () => {
@@ -64,7 +64,7 @@ describe('UsuariosPage CRM profile intelligence', () => {
     };
 
     expect(getCrmOperationalDataQualityScore(contact)).toBeLessThan(50);
-    expect(resolveCrmNextAction(contact)).toBe('Vincular identidad CRM');
+    expect(resolveCrmNextAction(contact)).toBe('Vincular esta persona con su ficha');
   });
 
   it('builds only explicitly tenant-scoped CRM directory requests', () => {
@@ -214,7 +214,7 @@ describe('UsuariosPage CRM profile intelligence', () => {
 
   it('labels socket state as transport evidence, never as user presence or delivery', () => {
     expect(getCrmTransportPresentation(true, 3)).toEqual({
-      statusLabel: 'Transporte conectado',
+      statusLabel: 'Actualización en vivo',
       signalLabel: '3 señales recibidas',
     });
     expect(getCrmTransportPresentation(false, -1)).toEqual({

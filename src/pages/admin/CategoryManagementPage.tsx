@@ -10,7 +10,6 @@ import { privateBackendRead } from '@/utils/privateBackendRead';
 import { panelReadOptions } from '@/utils/panelReadOptions';
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,16 +22,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  ArrowRight,
   Edit,
   FolderTree,
   Loader2,
   PlusCircle,
   RefreshCw,
-  Route,
   Trash2,
   Users2,
-  Workflow,
 } from 'lucide-react';
 
 type UnknownRecord = Record<string, unknown>;
@@ -46,6 +42,7 @@ interface Category {
 interface CategoryInventoryItem {key:string;label:string;persisted_category_ids:number[];source_types:string[];open_count:number;unassigned_count:number;eligible_employee_count:number|null;coverage_reason_code:string}
 interface CategoryInventory {items:CategoryInventoryItem[];summary:{persisted_categories:number;redacted_persisted_categories:number;detected_topics:number;open_count:number;unassigned_count:number}}
 const count=(value:unknown):value is number=>typeof value==='number'&&Number.isSafeInteger(value)&&value>=0;
+const withCount = (value: number, singular: string, plural: string) => `${value.toLocaleString('es-AR')} ${value === 1 ? singular : plural}`;
 const readCategoryInventory=(routing:EmployeeRoutingV2|null,slug:string):CategoryInventory|null=>{
   const raw=routing?.raw, value=isRecord(raw)?raw.category_inventory:null;
   if(!isRecord(value)||value.contract_version!=='employee.category_inventory.v1'||value.population!=='open_tickets'||value.viewer_scope!=='tenant_dispatch'||
@@ -171,8 +168,8 @@ const CategoryManagementPage: React.FC = () => {
   const { user } = useUser();
   const { scope, pending, key } = usePrivateAnalyticsScope();
   if (pending) return <ViewState status="loading" title="Validando acceso" />;
-  if (!hasRequiredRole(user?.rol, ['tenant_admin', 'superadmin', 'catalog_manager'])) return <ViewState status="denied" title="No tenés acceso a la administración de categorías" />;
-  if (!scope) return <ViewState status="empty" title="Organización de las categorías no verificada" />;
+  if (!hasRequiredRole(user?.rol, ['tenant_admin', 'superadmin', 'catalog_manager'])) return <ViewState status="denied" title="No tenés acceso a la administración de temas" />;
+  if (!scope) return <ViewState status="empty" title="Organización de los temas no verificada" />;
   return <ScopedCategoryManagement key={key} tenantSlug={scope.tenantSlug} canManageTeam={hasRequiredRole(user?.rol, ['tenant_admin', 'superadmin'])} />;
 };
 const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: boolean }> = ({ tenantSlug, canManageTeam }) => {
@@ -217,8 +214,8 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
       if (!isCurrent()) return null;
       const message =
         err instanceof ApiError && err.status === 403
-          ? 'Tu cuenta puede ver el panel, pero todavía no tiene permiso para administrar categorías.'
-          : 'No pudimos cargar las categorías. Reintentá o pedile al equipo que revise el módulo.';
+          ? 'Tu cuenta puede ver el panel, pero todavía no tiene permiso para administrar temas.'
+          : 'No pudimos cargar los temas. Reintentá o pedile al equipo que revise esta sección.';
       setError(message);
       return null;
     } finally {
@@ -235,9 +232,9 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
   const inventoryByName=useMemo(()=>new Map(inventory?.items.map(item=>[normalizeKey(item.label),item])),[inventory]);
   const routingTopicCount = visibleCategories.filter((category) => category.source === 'routing').length;
   const categorySourceLabels = [
-    `${catalogVerified ? categories.length : 'Cantidad no verificada'} en catálogo`,
-    routing ? `${routingTopicCount} temas de ruteo fuera del catálogo` : 'Temas de ruteo no informados',
-    inventory ? `${inventory.summary.detected_topics} con demanda abierta fuera del catálogo` : 'Demanda abierta no verificada',
+    catalogVerified ? withCount(categories.length, 'tema guardado', 'temas guardados') : 'Cantidad de temas guardados no verificada',
+    routing ? `${withCount(routingTopicCount, 'tema informado', 'temas informados')} por las reglas de atención y todavía no guardado${routingTopicCount === 1 ? '' : 's'}` : 'Temas de las reglas de atención no informados',
+    inventory ? `${withCount(inventory.summary.detected_topics, 'tema detectado', 'temas detectados')} en casos abiertos y todavía no guardado${inventory.summary.detected_topics === 1 ? '' : 's'}` : 'Casos abiertos no verificados',
   ];
   const categorySourcesSummary = categorySourceLabels.join(' · ');
 
@@ -276,7 +273,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
 
   const handleDelete = async (category: Category) => {
     if (!catalogVerified || unconfirmedCategory || mutationInFlight.current || !scopeIsCurrent() || !category.id || category.source === 'routing') return;
-    if (!window.confirm('Esta categoría dejará de estar disponible para nuevos reclamos. ¿Querés eliminarla?')) {
+    if (!window.confirm('Este tema dejará de estar disponible para clasificar casos nuevos. ¿Querés eliminarlo?')) {
       return;
     }
     mutationInFlight.current = true; setIsSaving(true);
@@ -291,7 +288,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
       await fetchCategories();
     } catch {
       if (!scopeIsCurrent()) return;
-      setError('No pudimos eliminar la categoría. Revisá si tiene tickets o reglas asociadas.');
+      setError('No pudimos eliminar el tema. Revisá si tiene casos o reglas asociadas.');
     } finally {
       mutationInFlight.current = false; if (scopeIsCurrent()) setIsSaving(false);
     }
@@ -322,13 +319,13 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
       const refreshed = await fetchCategories();
       if (!scopeIsCurrent()) return;
       if (!refreshed?.some(category => normalizeKey(category.nombre) === normalizeKey(nombre))) {
-        setError('El envío terminó, pero no pudimos confirmar la categoría en el catálogo. Actualizá el catálogo antes de volver a guardar.');
+        setError('El envío terminó, pero no pudimos confirmar el tema en la lista. Actualizá la información antes de volver a guardar.');
         return;
       }
       setUnconfirmedCategory(null);setSavedCategory(nombre); setCreateDraft(''); setIsDialogOpen(false);
     } catch {
       if (!scopeIsCurrent()) return;
-      setError('No pudimos guardar la categoría. Revisá el nombre y volvé a intentar.');
+      setError('No pudimos guardar el tema. Revisá el nombre y volvé a intentar.');
     } finally {
       mutationInFlight.current = false; if (scopeIsCurrent()) setIsSaving(false);
     }
@@ -337,129 +334,106 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
     if(!unconfirmedCategory||isSaving||!scopeIsCurrent())return;
     const name=unconfirmedCategory;const refreshed=await fetchCategories();if(!scopeIsCurrent())return;
     if(refreshed?.some(category=>normalizeKey(category.nombre)===normalizeKey(name))){setUnconfirmedCategory(null);setSavedCategory(name);setCreateDraft('');setIsDialogOpen(false);}
-    else setError('La categoría enviada todavía no pudo confirmarse. Conservamos el borrador; no se enviará nuevamente mientras su resultado siga pendiente.');
+    else setError('El tema enviado todavía no pudo confirmarse. Conservamos el borrador; no se enviará nuevamente mientras su resultado siga pendiente.');
   };
 
-  const operationCards = [
+  const topicsWithAvailablePeople = inventory
+    ? inventory.items.filter((item) => (item.eligible_employee_count ?? 0) > 0).length
+    : routing
+      ? routedCategories
+      : null;
+  const peopleWithTopics = routing ? employeesWithCoverage : null;
+  const casesWithoutOwner = routing?.queues.unassigned_count ?? null;
+  const overviewItems = [
     {
-      label: 'Temas de atención',
-      value: visibleCategories.length,
-      helper: categorySourcesSummary,
-      icon: FolderTree,
+      label: 'Temas disponibles',
+      value: visibleCategories.length ? visibleCategories.length.toLocaleString('es-AR') : 'Todavía no hay',
+      helper: 'Sirven para ordenar los casos que llegan.',
     },
     {
-      label: inventory ? 'Temas con personas compatibles' : 'Temas con alcance declarado',
-      value: inventory ? inventory.items.filter(item=>(item.eligible_employee_count??0)>0).length : routing ? routedCategories : 'No informado',
-      helper: inventory ? 'Compatibilidad con al menos un caso abierto, según el servidor.' : 'Personas con este tema en su alcance publicado.',
-      icon: Route,
+      label: 'Temas que alguien puede atender',
+      value: topicsWithAvailablePeople === null ? 'No se pudo comprobar' : topicsWithAvailablePeople ? topicsWithAvailablePeople.toLocaleString('es-AR') : 'Todavía ninguno',
+      helper: 'Al menos una persona tiene ese tema entre sus responsabilidades.',
     },
     {
-      label: 'Personas con temas declarados',
-      value: routing ? employeesWithCoverage : 'No informado',
-      helper: 'Personas con temas de atención en su alcance publicado.',
-      icon: Users2,
+      label: 'Personas con temas asignados',
+      value: peopleWithTopics === null ? 'No se pudo comprobar' : peopleWithTopics ? peopleWithTopics.toLocaleString('es-AR') : 'Todavía ninguna',
+      helper: 'Personas que ya tienen al menos un tema a cargo.',
     },
     {
-      label: 'Sin asignar',
-      value: routing?.queues.unassigned_count ?? 'No informado',
-      helper: 'Tickets que esperan una persona responsable.',
-      icon: Workflow,
+      label: 'Casos sin responsable',
+      value: casesWithoutOwner === null ? 'No se pudo comprobar' : casesWithoutOwner ? casesWithoutOwner.toLocaleString('es-AR') : 'Todos tienen responsable',
+      helper: 'Casos abiertos que todavía esperan asignación.',
     },
   ];
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div role="status" className="flex min-h-[60vh] items-center justify-center gap-3 text-muted-foreground">
+        <Loader2 aria-hidden="true" className="h-8 w-8 animate-spin text-primary" />
+        <span>Cargando temas de atención…</span>
       </div>
     );
   }
 
   return (
     <SectionErrorBoundary
-      title="No pudimos cargar categorías"
+      title="No pudimos cargar los temas"
       description="Reintentá la carga o volvé al panel."
       onRetry={() => fetchCategories()}
       resetKeys={[tenantSlug]}
-      fallbackAction={<a href="/perfil">Volver al panel</a>}
+      fallbackAction={<a href="/perfil" className="inline-flex min-h-11 items-center rounded-md underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Volver al panel</a>}
     >
       <div className="mx-auto w-full max-w-7xl space-y-8 p-4 sm:p-6 lg:p-8">
         <section className="flex flex-col gap-5 border-b border-border/70 pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl space-y-3">
-            <Badge variant="outline" className="w-fit rounded-full px-3 py-1">
-              Ruteo de reclamos
-            </Badge>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestión de categorías</h1>
+          <div className="max-w-3xl space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Temas de atención</h1>
             <p className="text-base text-muted-foreground">
-              Organizá los temas que llegan a la bandeja, conectalos con empleados y mantené la carga de trabajo visible.
-              Cada categoría ayuda a que el caso entre ordenado y llegue al equipo correcto.
+              Acá ves cómo se ordenan los casos que llegan. Agregá un tema y después definí quién puede atenderlo.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={fetchCategories} disabled={isSaving}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Actualizar
-            </Button>
-            <Button onClick={handleCreate} disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Crear categoría
-            </Button>
-          </div>
+          <Button className="min-h-11" onClick={handleCreate} disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory)}>
+            <PlusCircle aria-hidden="true" className="mr-2 h-4 w-4" />
+            Agregar tema
+          </Button>
         </section>
 
         {savedCategory ? <div role="status" className="rounded-xl border border-border bg-muted/20 p-4">
-          <p>La categoría «{savedCategory}» está en el catálogo. {canManageTeam ? 'El siguiente paso es revisar sus responsables.' : 'Pedile al administrador que revise sus responsables.'}</p>
-          {canManageTeam ? <a href={responsibleHref} className="mt-2 inline-flex min-h-11 items-center underline underline-offset-4">Revisar responsables</a> : null}
+          <p>El tema «{savedCategory}» ya está disponible. {canManageTeam ? 'Ahora definí quién puede atenderlo.' : 'Pedile a quien administra el equipo que defina quién puede atenderlo.'}</p>
+          {canManageTeam ? <a href={responsibleHref} className="mt-2 inline-flex min-h-11 items-center rounded-md font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Revisar quién atiende este tema</a> : null}
         </div> : null}
-        {canManageTeam ? <a href={responsibleHref} className="inline-flex min-h-11 items-center gap-2 underline underline-offset-4"><Users2 size={18} aria-hidden="true" />Ver equipo y responsables</a> : null}
-        {inventory ? <p className="text-sm text-muted-foreground">Los temas de ruteo pueden provenir de la taxonomía publicada o de casos abiertos. Los temas con demanda abierta fuera del catálogo se cuentan por separado. La compatibilidad publicada indica personas que pueden atender al menos un caso abierto del tema; no garantiza que todos sus casos tengan cobertura.</p> : null}
-        {unconfirmedCategory && !isDialogOpen ? <Button variant="outline" disabled={isSaving} onClick={()=>void verifyUnconfirmedCategory()}>Comprobar categoría enviada</Button> : null}
+        {canManageTeam ? <a href={responsibleHref} className="inline-flex min-h-11 items-center gap-2 rounded-md font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Users2 size={18} aria-hidden="true" />Revisar quién atiende cada tema</a> : null}
+        {unconfirmedCategory && !isDialogOpen ? <Button className="min-h-11" variant="outline" disabled={isSaving} onClick={()=>void verifyUnconfirmedCategory()}>Comprobar el tema enviado</Button> : null}
 
         {error && !isDialogOpen ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            <span role="alert">{error}</span>
+          <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            <p>{error}</p>
+            <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={() => void fetchCategories()} disabled={isSaving}>
+              Reintentar
+            </Button>
           </div>
         ) : null}
 
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {operationCards.map(({ label, value, helper, icon: Icon }) => (
-            <div key={label} className="rounded-2xl border border-border/70 bg-card/70 p-4 shadow-sm">
-              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Icon className="h-4 w-4" />
+        <section aria-labelledby="resumen-temas" className="rounded-lg border border-border/70 bg-card p-5">
+          <h2 id="resumen-temas" className="text-lg font-semibold text-foreground">Estado de la atención</h2>
+          <dl className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {overviewItems.map(({ label, value, helper }) => (
+              <div key={label}>
+                <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
+                <dd className="mt-1 text-2xl font-semibold text-foreground">{value}</dd>
+                <p className="mt-1 text-sm text-muted-foreground">{helper}</p>
               </div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-              <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{helper}</p>
-            </div>
-          ))}
+            ))}
+          </dl>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
-          {[
-            ['Clasificá lo que llega', 'Cada reclamo, consulta o pedido queda asociado a un tema operativo.'],
-            ['Derivá mejor', 'El ruteo usa estas categorías para sugerir empleados y equilibrar carga.'],
-            ['Medí con sentido', 'Las métricas, mapas y prioridades se entienden por tema, zona y canal.'],
-          ].map(([title, copy]) => (
-            <div key={title} className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <ArrowRight className="h-4 w-4" />
-              </div>
-              <h2 className="font-semibold text-foreground">{title}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">{copy}</p>
-            </div>
-          ))}
-        </section>
-
-        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/70 shadow-sm">
-          <div className="flex flex-col gap-2 border-b border-border/70 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+          <div className="border-b border-border/70 p-5">
             <div>
-              <h2 className="text-xl font-semibold text-foreground">Catálogo y temas de ruteo</h2>
+              <h2 className="text-xl font-semibold text-foreground">Temas disponibles</h2>
               <p className="text-sm text-muted-foreground">
-                Usá esta lista para mantener claro qué atiende cada equipo.
+                Revisá qué tema usa cada caso y si ya hay personas preparadas para atenderlo.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {categorySourceLabels.map((label) => <Badge key={label} variant="secondary" className="w-fit rounded-full">{label}</Badge>)}
             </div>
           </div>
 
@@ -476,9 +450,9 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-semibold text-foreground">{category.nombre}</h3>
                         {category.source === 'routing' ? (
-                          <Badge variant="outline" className="rounded-full">
-                            {demand?.open_count ? 'demanda abierta · fuera del catálogo' : demand?.source_types.some((source) => source !== 'open_tickets') ? 'taxonomía de ruteo · fuera del catálogo' : 'tema de ruteo · fuera del catálogo'}
-                          </Badge>
+                          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                            {demand?.open_count ? 'Hay casos de este tema; falta agregarlo' : 'Falta agregarlo a la lista'}
+                          </span>
                         ) : null}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
@@ -487,22 +461,30 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
                           : 'No hay personas con este tema en su alcance publicado.'}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant={assignedEmployees.length ? 'secondary' : 'outline'} className="rounded-full">
-                        {demand ? demand.eligible_employee_count === null ? 'Compatibilidad no verificada: sin demanda actual' : `${demand.eligible_employee_count} personas compatibles con al menos un caso` : routing ? assignedEmployees.length ? 'Con cobertura declarada' : 'Sin cobertura declarada' : 'Cobertura no verificada'}
-                      </Badge>
-                      <Badge variant="outline" className="rounded-full">
-                        {workload} abiertos del equipo
-                      </Badge>
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium text-foreground">
+                        {demand
+                          ? demand.eligible_employee_count === null
+                            ? 'Todavía no hay casos abiertos para comprobar quién puede atenderlos'
+                            : demand.eligible_employee_count
+                              ? `${demand.eligible_employee_count} persona${demand.eligible_employee_count === 1 ? '' : 's'} puede${demand.eligible_employee_count === 1 ? '' : 'n'} atender al menos un caso`
+                              : 'Ninguna persona puede atender los casos abiertos de este tema'
+                          : routing
+                            ? assignedEmployees.length
+                              ? `${assignedEmployees.length} persona${assignedEmployees.length === 1 ? '' : 's'} tiene${assignedEmployees.length === 1 ? '' : 'n'} este tema asignado`
+                              : 'Ninguna persona tiene este tema asignado'
+                            : 'No pudimos comprobar quién puede atender este tema'}
+                      </p>
+                      <p className="text-muted-foreground">{workload ? `${workload} casos abiertos asignados al equipo` : 'El equipo no tiene casos abiertos de este tema'}</p>
                     </div>
                     <div className="flex justify-start gap-2 lg:justify-end">
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(category)} disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory)} aria-label={`${canEdit ? 'Editar categoría' : 'Revisar y crear categoría'}: ${category.nombre}`}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        {canEdit ? 'Editar' : 'Revisar y crear categoría'}
+                      <Button className="min-h-11" variant="outline" size="sm" onClick={() => handleEdit(category)} disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory)} aria-label={`${canEdit ? 'Editar tema' : 'Revisar y agregar tema'}: ${category.nombre}`}>
+                        <Edit aria-hidden="true" className="mr-2 h-4 w-4" />
+                        {canEdit ? 'Editar' : 'Revisar y agregar tema'}
                       </Button>
                       {canEdit ? (
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(category)} disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory)} aria-label={`Eliminar categoría: ${category.nombre}`}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                        <Button className="min-h-11 min-w-11" variant="ghost" size="icon" onClick={() => handleDelete(category)} disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory)} aria-label={`Eliminar tema: ${category.nombre}`}>
+                          <Trash2 aria-hidden="true" className="h-4 w-4 text-destructive" />
                         </Button>
                       ) : null}
                     </div>
@@ -513,49 +495,70 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
           ) : (
             <div className="flex flex-col items-center justify-center gap-4 px-6 py-14 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <FolderTree className="h-6 w-6" />
+                <FolderTree aria-hidden="true" className="h-6 w-6" />
               </div>
               <div className="max-w-lg space-y-2">
-                <h3 className="text-xl font-semibold text-foreground">Todavía no hay categorías configuradas</h3>
+                <h3 className="text-xl font-semibold text-foreground">Todavía no hay temas de atención</h3>
                 <p className="text-sm text-muted-foreground">
-                  Creá la primera categoría para que los reclamos puedan agruparse y asignarse con más claridad.
+                  Agregá el primer tema para ordenar los casos y definir quién puede atenderlos.
                 </p>
               </div>
-                <Button onClick={handleCreate} disabled={!catalogVerified || Boolean(unconfirmedCategory)}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Crear primera categoría
+              <Button className="min-h-11" onClick={handleCreate} disabled={!catalogVerified || Boolean(unconfirmedCategory)}>
+                <PlusCircle aria-hidden="true" className="mr-2 h-4 w-4" />
+                Agregar el primer tema
               </Button>
             </div>
           )}
+          <details className="group border-t border-border/70">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center px-5 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+              Datos para soporte
+            </summary>
+            <div className="space-y-4 border-t border-border/70 p-5 text-sm text-muted-foreground">
+              <p>{categorySourcesSummary}</p>
+              {inventory ? (
+                <p>
+                  Los datos distinguen los temas guardados de los detectados en casos abiertos. La cantidad de personas disponibles indica quién puede atender al menos un caso del tema; no confirma que todos tengan responsable.
+                </p>
+              ) : (
+                <p>No se pudo comprobar el origen de todos los temas ni la demanda abierta.</p>
+              )}
+              <Button className="min-h-11" variant="outline" onClick={fetchCategories} disabled={isSaving}>
+                <RefreshCw aria-hidden="true" className="mr-2 h-4 w-4" />
+                Actualizar información
+              </Button>
+            </div>
+          </details>
         </section>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingCategory && editingCategory.source !== 'routing' ? 'Editar categoría' : 'Crear categoría'}</DialogTitle>
+              <DialogTitle>{editingCategory && editingCategory.source !== 'routing' ? 'Editar tema' : 'Agregar tema'}</DialogTitle>
               <DialogDescription>
-                {editingCategory?.source === 'routing' ? 'Este tema fue publicado por ruteo y todavía no está en el catálogo. Revisá su nombre antes de crear la categoría. Los responsables se revisan en Equipo.' : 'El nombre se usa para clasificar tickets. La categoría y la cobertura de responsables se administran por separado.'}
+                {editingCategory?.source === 'routing'
+                  ? 'Este tema aparece en la información de atención, pero todavía no está guardado. Revisá el nombre antes de agregarlo. Después definí quién puede atenderlo desde Equipo.'
+                  : 'El nombre se usa para clasificar casos. Después podés definir quién atiende el tema desde Equipo.'}
               </DialogDescription>
             </DialogHeader>
             {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-            {unconfirmedCategory ? <Button type="button" variant="outline" disabled={isSaving} onClick={()=>void verifyUnconfirmedCategory()}>Comprobar catálogo</Button> : null}
+            {unconfirmedCategory ? <Button className="min-h-11" type="button" variant="outline" disabled={isSaving} onClick={()=>void verifyUnconfirmedCategory()}>Comprobar el tema</Button> : null}
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="category-name">Nombre</Label>
                 <Input
                   id="category-name"
-                  placeholder="Ejemplo: Alumbrado, Reclamos comerciales, Admisiones"
+                  placeholder="Nombre claro del tema"
                   value={categoryName}
                   onChange={(event) => { setCategoryName(event.target.value); if (!editingCategory || editingCategory.source === 'routing') setCreateDraft(event.target.value); }}
                   autoFocus
                 />
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
+                <Button className="min-h-11" type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory) || !categoryName.trim()}>
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                <Button className="min-h-11" type="submit" disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory) || !categoryName.trim()}>
+                  {isSaving ? <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Guardar
                 </Button>
               </DialogFooter>

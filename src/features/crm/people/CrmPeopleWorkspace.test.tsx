@@ -161,7 +161,7 @@ describe("CrmPeopleWorkspace", () => {
 
     render(<Harness embedded />);
 
-    expect(screen.getByTestId("crm-organization-label")).toHaveTextContent(`CRM · ${label}`);
+    expect(screen.getByTestId("crm-organization-label")).toHaveTextContent(`Organización: ${label}`);
     expect(screen.queryByText("CRM municipal")).not.toBeInTheDocument();
   });
 
@@ -192,14 +192,14 @@ describe("CrmPeopleWorkspace", () => {
 
     render(<Harness embedded />);
 
-    expect(screen.getByTestId("crm-organization-label")).toHaveTextContent(/^CRM$/);
+    expect(screen.getByTestId("crm-organization-label")).toHaveTextContent(/^Personas de la organización$/);
   });
 
   it("keeps the document main landmark owned by the application layout", () => {
     const { container } = render(<Harness />);
 
     expect(screen.getByTestId("crm-person-detail")).toBeInTheDocument();
-    expect(screen.getByText("Transporte conectado")).toBeInTheDocument();
+    expect(screen.getByText("Actualización en vivo")).toBeInTheDocument();
     expect(screen.queryByText("Socket conectado")).not.toBeInTheDocument();
     expect(screen.queryByText("En vivo")).not.toBeInTheDocument();
     expect(container.querySelectorAll("main")).toHaveLength(0);
@@ -214,7 +214,7 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByTestId("crm-people-grid")).not.toHaveClass("min-h-[560px]");
     expect(screen.queryByTestId("crm-overview-metrics")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver indicadores CRM" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ver indicadores" }));
     expect(screen.getByTestId("crm-overview-metrics-popover")).toHaveTextContent("Personas");
     expect(screen.getByTestId("crm-overview-metrics-popover")).toHaveTextContent("2");
   });
@@ -225,27 +225,27 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByTestId("crm-area-navigation")).toHaveClass("grid", "grid-cols-4", "overflow-hidden");
     expect(screen.getByTestId("crm-person-tabs")).toHaveClass("overflow-hidden");
     expect(screen.getByTestId("crm-person-scroll")).toHaveClass("min-h-0", "flex-1");
-    expect(screen.getByRole("button", { name: "Sin caso exacto" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sin caso vinculado" })).toBeDisabled();
     expect(screen.queryByText("Deslizá la lista desde el selector de persona.")).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: "Vista operativa de personas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Grupo de personas" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Buscar personas" })).toBeVisible();
 
     const trigger = screen.getByRole("button", { name: "Filtros y vistas de personas" });
     fireEvent.click(trigger);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Vista operativa de personas" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Grupo de personas" }), {
       target: { value: "whatsapp" },
     });
 
     expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Vista operativa de personas" })).toHaveValue("whatsapp");
+    expect(screen.getByRole("combobox", { name: "Grupo de personas" })).toHaveValue("whatsapp");
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("combobox", { name: "Vista operativa de personas" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("combobox", { name: "Grupo de personas" })).not.toBeInTheDocument());
     expect(screen.getByRole("status", { name: "Filtros activos de personas" })).toHaveTextContent("Vista: WhatsApp");
     expect(trigger).toHaveFocus();
 
     fireEvent.click(trigger);
-    expect(screen.getByRole("combobox", { name: "Vista operativa de personas" })).toHaveValue("whatsapp");
+    expect(screen.getByRole("combobox", { name: "Grupo de personas" })).toHaveValue("whatsapp");
   });
 
   it("preserves loaded totals, selection and opt-in filters through the embedded disclosure", async () => {
@@ -257,30 +257,30 @@ describe("CrmPeopleWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Filtros y vistas de personas" }));
     const filters = screen.getByRole("dialog", { name: "Filtros y vistas del directorio" });
     expect(filters).toHaveTextContent("Vistas sobre 2 cargadas");
-    expect(within(filters).getByRole("combobox", { name: /Orden backend por actividad reciente/ })).toBeDisabled();
+    expect(within(filters).getByRole("combobox", { name: /Orden del sistema por actividad reciente/ })).toBeDisabled();
 
-    fireEvent.change(within(filters).getByRole("combobox", { name: "Vista operativa de personas" }), { target: { value: "whatsapp" } });
-    fireEvent.click(within(filters).getByRole("checkbox", { name: "Con opt-in" }));
+    fireEvent.change(within(filters).getByRole("combobox", { name: "Grupo de personas" }), { target: { value: "whatsapp" } });
+    fireEvent.click(within(filters).getByRole("checkbox", { name: "Con consentimiento" }));
     fireEvent.click(within(filters).getByRole("checkbox", { name: "Seleccionar personas visibles" }));
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros y vistas del directorio" })).not.toBeInTheDocument());
 
     expect(toolbar).toHaveTextContent("1 visibles · 2 cargadas");
-    expect(screen.getByRole("status", { name: "Filtros activos de personas" })).toHaveTextContent("Con opt-in");
+    expect(screen.getByRole("status", { name: "Filtros activos de personas" })).toHaveTextContent("Con consentimiento");
     expect(screen.getByRole("region", { name: "Acciones sobre personas seleccionadas" })).toHaveTextContent("1personas seleccionadas");
     fireEvent.click(screen.getByRole("button", { name: "Cargar más" }));
     expect(onLoadMore).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Filtros y vistas de personas, 2 activos" }));
-    expect(screen.getByRole("checkbox", { name: "Con opt-in" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Con consentimiento" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Seleccionar personas visibles" })).toBeChecked();
   });
 
   it("preserves the standalone directory controls outside Perfil", () => {
     render(<Harness />);
 
-    expect(screen.queryByRole("combobox", { name: "Vista operativa de personas" })).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Vistas operativas de personas" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Grupo de personas" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Grupos de personas" })).toBeInTheDocument();
     expect(screen.getByText("Deslizá la lista desde el selector de persona.")).toBeInTheDocument();
   });
 
@@ -305,7 +305,7 @@ describe("CrmPeopleWorkspace", () => {
 
     expect(screen.getAllByText("Mauricio Alonso").length).toBeGreaterThan(0);
     expect(screen.queryByRole("link", { name: /WhatsApp externo/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sin caso exacto" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sin caso vinculado" })).toBeDisabled();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Seleccionar persona" }), {
       target: { value: "42" },
@@ -318,7 +318,7 @@ describe("CrmPeopleWorkspace", () => {
       "/perfil?tab=tickets&source_model=MunicipioTicket&ticket_id=419&tenant_slug=junin&tenant=junin",
     ));
     expect(onOpenTicketDesk.mock.calls[0][0]).not.toContain("q=");
-    expect(screen.getByRole("region", { name: "Estado operacional de la persona" })).toHaveTextContent("Calidad de datos65%");
+    expect(screen.getByRole("region", { name: "Resumen de la persona" })).toHaveTextContent("Calidad de datos65%");
   });
 
   it("routes multiple exact cases to a compact chooser and opens each exact identity", async () => {
@@ -360,7 +360,7 @@ describe("CrmPeopleWorkspace", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Ver 2 casos" }));
 
-    expect(await screen.findByRole("region", { name: "Casos exactos del contacto" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Casos vinculados con la persona" })).toBeInTheDocument();
     expect(screen.getByText("Luminaria apagada")).toBeInTheDocument();
     expect(screen.getByText("Bache en calzada")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Casos 2/i })).toHaveAttribute("data-state", "active");
@@ -397,9 +397,9 @@ describe("CrmPeopleWorkspace", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Ver 1+ casos" }));
 
-    expect(await screen.findByRole("region", { name: "Casos exactos del contacto" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Casos vinculados con la persona" })).toBeInTheDocument();
     expect(screen.getByText("Luminaria apagada")).toBeInTheDocument();
-    expect(screen.getByText("2 informados · 1 verificables")).toBeInTheDocument();
+    expect(screen.getByText("2 informados · 1 confirmados")).toBeInTheDocument();
     expect(onOpenTicketDesk).not.toHaveBeenCalled();
   });
 
@@ -416,8 +416,8 @@ describe("CrmPeopleWorkspace", () => {
     });
     render(<Harness initialSelectedContactId="42" onOpenTicketDesk={onOpenTicketDesk} />);
 
-    expect(await screen.findByText(/Sin caso exacto asociado/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sin caso exacto" })).toBeDisabled();
+    expect(await screen.findByText(/No hay casos vinculados recientes/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sin caso vinculado" })).toBeDisabled();
     expect(onOpenTicketDesk).not.toHaveBeenCalled();
   });
 
@@ -568,20 +568,20 @@ describe("CrmPeopleWorkspace", () => {
     });
     render(<Harness embedded initialSelectedContactId="42" />);
 
-    const summary = screen.getByRole("region", { name: "Estado operacional de la persona" });
-    await waitFor(() => expect(summary).toHaveTextContent("1 exacto"));
+    const summary = screen.getByRole("region", { name: "Resumen de la persona" });
+    await waitFor(() => expect(summary).toHaveTextContent("1 vinculado"));
     expect(summary).toHaveTextContent("Equipo de Alumbrado");
     expect(summary).toHaveTextContent("En Riesgo");
-    expect(summary).toHaveTextContent("Declarado sin trazabilidad");
-    expect(screen.getByRole("region", { name: "Actividad y casos exactos de la persona" })).toHaveTextContent("La luminaria continúa apagada.");
+    expect(summary).toHaveTextContent("Declarado, falta comprobante");
+    expect(screen.getByRole("region", { name: "Actividad y casos vinculados de la persona" })).toHaveTextContent("La luminaria continúa apagada.");
     expect(screen.queryByRole("complementary", { name: "Panel contextual" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Detalle 360" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalle" }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Contexto operativo" })).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "Calidad de datos operativa de la persona" })).toHaveAttribute("aria-valuenow", "65");
-    expect(screen.getAllByText("Declarado sin trazabilidad").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Resumen de la persona" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Datos disponibles en la ficha de la persona" })).toHaveAttribute("aria-valuenow", "65");
+    expect(screen.getAllByText("Declarado, falta comprobante").length).toBeGreaterThan(0);
   });
 
   it("virtualizes a large directory instead of mounting every desktop row", () => {
@@ -737,12 +737,12 @@ describe("CrmPeopleWorkspace", () => {
 
     expect(screen.getByText("1 de 84")).toBeInTheDocument();
     expect(screen.getByText("Vistas sobre 1 cargadas")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /Orden backend por actividad reciente sobre 1 personas cargadas/i })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: /Orden del sistema por actividad reciente sobre 1 personas cargadas/i })).toBeDisabled();
     expect(screen.getAllByText("Datos protegidos").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Revisar identidad").length).toBeGreaterThan(0);
     expect(screen.getByText("Calidad no evaluable")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Seleccionar personas visibles" })).toBeDisabled();
-    expect(screen.queryByRole("progressbar", { name: "Calidad de datos operativa de la persona" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", { name: "Datos disponibles en la ficha de la persona" })).not.toBeInTheDocument();
     expect(apiFetchMock).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Cargar más" }));
@@ -754,7 +754,7 @@ describe("CrmPeopleWorkspace", () => {
       fireEvent.keyDown(actionsTrigger, { key: "ArrowDown" });
     });
     const actionsMenu = await screen.findByRole("menu");
-    expect(within(actionsMenu).getByRole("menuitem", { name: "Sin caso exacto" })).toHaveAttribute("data-disabled");
+    expect(within(actionsMenu).getByRole("menuitem", { name: "Sin caso vinculado" })).toHaveAttribute("data-disabled");
     expect(within(actionsMenu).queryByRole("menuitem", { name: "Copiar teléfono" })).not.toBeInTheDocument();
     expect(within(actionsMenu).queryByRole("menuitem", { name: "Copiar email" })).not.toBeInTheDocument();
     expect(within(actionsMenu).queryByRole("menuitem", { name: "WhatsApp externo" })).not.toBeInTheDocument();

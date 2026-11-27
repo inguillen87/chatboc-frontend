@@ -130,8 +130,8 @@ const QUALITY_MESSAGES: Record<string, { label: string; detail: string }> = {
 export const describeLocationQuality = (reasonCode: string | null | undefined) => {
   const normalized = normalizeTerritorialFilter(reasonCode).replace(/-/g, '_');
   return QUALITY_MESSAGES[normalized] ?? {
-    label: 'Calidad territorial pendiente',
-    detail: 'El contrato no publicó una razón más específica. Revisá el ticket antes de aceptar o rechazar la ubicación.',
+    label: 'Falta revisar la ubicación',
+    detail: 'No se informó por qué esta ubicación necesita revisión. Abrí el caso y comprobá la dirección antes de aceptarla o rechazarla.',
   };
 };
 
@@ -217,7 +217,7 @@ const adaptCandidate = (
   if (!reviewAction.enabled && ticketHref) {
     reviewAction.href = ticketHref;
     reviewAction.enabled = true;
-    reviewAction.reason = 'Abre el ticket para revisar la evidencia protegida sin decidir automáticamente.';
+    reviewAction.reason = 'Abrí el caso para revisar la información protegida sin decidir automáticamente.';
   }
   return {
     id: String(candidate.record_id ?? candidate.ticket_id ?? `pending-location-${index + 1}`),
@@ -376,7 +376,7 @@ export const adaptTerritorialPreviewQueue = (
           href: ticketHref,
           enabled: Boolean(ticketHref && item.inspectSourceEnabled),
           reason: ticketHref
-            ? 'Abre el reclamo original para completar la ubicación sin exponerla en la cola.'
+            ? 'Abrí el caso original para completar la ubicación sin exponerla en la cola.'
             : 'El contrato no publicó una identidad de reclamo navegable.',
         },
         approve: {

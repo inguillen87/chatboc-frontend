@@ -185,9 +185,9 @@ describe('CRM activity belongs to its current organization and session', () => {
     const old = batch(0);
     view.rerender(page('org-b'));
     await waitFor(() => expect(activityFixture.requests).toHaveLength(6));
-    expect(screen.getByText('Cargando actividad operativa...')).toBeInTheDocument();
+    expect(screen.getByText('Cargando envíos recientes...')).toBeInTheDocument();
     await settled(old, 'A-retired', outcome === 'reject');
-    expect(screen.getByText('Cargando actividad operativa...')).toBeInTheDocument();
+    expect(screen.getByText('Cargando envíos recientes...')).toBeInTheDocument();
     expectNoLabelInRenders('org-b', 'A-retired');
     expect(warning.mock.calls.filter(([message]) => String(message).startsWith('No se pudo cargar actividad'))).toHaveLength(0);
     await settled(batch(3), 'B-current');
@@ -217,7 +217,7 @@ describe('CRM activity belongs to its current organization and session', () => {
     await waitFor(() => expect(activityFixture.requests).toHaveLength(9));
     const returnRender = activityFixture.renders.length;
     await settled(old, 'A-old-generation');
-    expect(screen.getByText('Cargando actividad operativa...')).toBeInTheDocument();
+    expect(screen.getByText('Cargando envíos recientes...')).toBeInTheDocument();
     expect(screen.queryByText('A-old-generation-ledger')).not.toBeInTheDocument();
     await settled(batch(6), 'A-current-generation');
     expect(screen.getByText('A-current-generation-ledger')).toBeInTheDocument();
