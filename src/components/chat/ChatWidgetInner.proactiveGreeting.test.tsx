@@ -224,13 +224,13 @@ describe('proactive greeting ownership and keyboard behavior', () => {
 });
 
 describe('proactive greeting beside an embedded published reader', () => {
-  it('keeps the launcher and raises no greeting while the reader is the page content', async () => {
-    // Wide screens have room for both; the narrow case is covered below.
+  it('steps aside and raises no greeting while the reader is the page content', async () => {
+    // The organization's own reader is the page: no second assistant floats over it, on any screen.
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
     const release = registerEmbeddedInstitutionalReader();
     try {
-      await mountWidget(); await tick(45000);
-      expect(launcher()).toBeInTheDocument();
+      await act(async () => { render(widgetTree('qa-a', 'standalone')); }); await tick(45000);
+      expect(screen.queryByRole('button', { name: 'Abrir el asistente Asistente qa-a' })).not.toBeInTheDocument();
       expect(screen.queryByText(greeting, { exact: true })).not.toBeInTheDocument();
       // Leaving the reader (for example another section of the same space) restores the published greeting.
       act(() => { release(); }); await tick(12000);
@@ -240,7 +240,6 @@ describe('proactive greeting beside an embedded published reader', () => {
       try {
         await tick(100);
         expect(screen.queryByText(greeting, { exact: true })).not.toBeInTheDocument();
-        expect(launcher()).toBeInTheDocument();
       } finally { act(() => { again(); }); }
     } finally { act(() => { release(); }); }
     expect(hasEmbeddedInstitutionalReader()).toBe(false);

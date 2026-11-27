@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { useUser } from '@/hooks/useUser';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -210,6 +211,11 @@ export const TenantShell = ({ children, compactHeader = false, titleSection }: T
     [navigationQuery.data?.items],
   );
 
+  // Following and saved spaces belong to a signed-in person's account. Someone
+  // who only came to get help sees the organization's portal, not a profile.
+  const { user: signedInUser } = useUser();
+  const canFollowSpaces = Boolean(signedInUser);
+
   const handleToggleFollow = async () => {
     if (!slugForPath) return;
     setUpdatingFollow(true);
@@ -330,7 +336,7 @@ export const TenantShell = ({ children, compactHeader = false, titleSection }: T
                   {organizationTypeLabel(resolvedTenant.tipo)}
                 </Badge>
               ) : null}
-              {isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}
+              {canFollowSpaces && isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}
             </div>
             <div>
               <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('font-semibold leading-tight', HEADING_FOCUS_CLASS, compactHeader ? 'text-xl sm:text-2xl' : 'text-3xl')}>{resolvedTenant.nombre}</h1>
@@ -343,15 +349,17 @@ export const TenantShell = ({ children, compactHeader = false, titleSection }: T
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {/* Secondary on purpose: people come here for help, not to follow. On a
               phone it keeps its own width instead of taking a full row. */}
-          <Button
-            onClick={handleToggleFollow}
-            variant="outline"
-            disabled={updatingFollow}
-            className="min-h-11 self-start sm:self-auto"
-          >
-            {isCurrentTenantFollowed ? 'Dejar de seguir' : 'Seguir espacio'}
-          </Button>
-          {!hostBinding ? <TenantSwitcher className="w-full sm:w-60" /> : null}
+          {canFollowSpaces ? (
+            <Button
+              onClick={handleToggleFollow}
+              variant="outline"
+              disabled={updatingFollow}
+              className="min-h-11 self-start sm:self-auto"
+            >
+              {isCurrentTenantFollowed ? 'Dejar de seguir' : 'Seguir espacio'}
+            </Button>
+          ) : null}
+          {!hostBinding && canFollowSpaces ? <TenantSwitcher className="w-full sm:w-60" /> : null}
         </div>
       </div>
     );
