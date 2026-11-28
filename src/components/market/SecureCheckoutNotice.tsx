@@ -9,6 +9,8 @@ interface SecureCheckoutNoticeProps {
   checkoutPreview?: MarketCheckoutPreview | null;
   blockedReason?: string | null;
   compact?: boolean;
+  /** Show the store team what is missing to take online payments. */
+  showOperatorDetail?: boolean;
 }
 
 const resolveCheckoutExperience = (
@@ -25,14 +27,14 @@ export default function SecureCheckoutNotice({
   checkoutPreview,
   blockedReason,
   compact = false,
+  showOperatorDetail = false,
 }: SecureCheckoutNoticeProps) {
   const experience = resolveCheckoutExperience(checkoutOptions, checkoutPreview);
   const reasonCode = checkoutOptions?.reason_code ?? experience?.reason_code ?? null;
-  const gatewayLabel =
-    experience?.gateway?.provider_label ??
-    checkoutOptions?.gateway_hint ??
-    checkoutOptions?.gateway ??
-    'Proveedor de pago';
+  // A short provider name for the chip; the hint is a sentence for the buyer.
+  const rawGateway = String(experience?.gateway?.provider_label ?? checkoutOptions?.gateway ?? '').trim();
+  const gatewayLabel = /mercado\s*pago|mercadopago/i.test(rawGateway) ? 'Mercado Pago' : rawGateway.length <= 24 ? rawGateway : '';
+  const buyerHint = typeof checkoutOptions?.gateway_hint === 'string' ? checkoutOptions.gateway_hint.trim() : '';
   const isReady =
     experience?.ready ??
     checkoutOptions?.ready ??
@@ -50,9 +52,8 @@ export default function SecureCheckoutNotice({
         ? experience?.copy?.customer_pending_gateway
         : null) ??
     (isReady
-      ? experience?.copy?.customer_ready ??
-        'El pago se abre en checkout seguro y se confirma por webhook del proveedor.'
-      : 'Checkout seguro disponible cuando el plan y el proveedor de pago esten configurados.');
+      ? experience?.copy?.customer_ready ?? (buyerHint || 'El pago se abre en una página segura del proveedor de pago.')
+      : buyerHint || 'El pago online todavía no está disponible. Confirmamos tu pedido y te contamos cómo pagar.');
 
   const toneClass = blockedReason
     ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100'
@@ -69,12 +70,14 @@ export default function SecureCheckoutNotice({
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold leading-tight">Pago seguro externo</p>
-            <Badge variant="outline" className="border-current/20 bg-background/70 text-[11px]">
-              {gatewayLabel}
-            </Badge>
+            {gatewayLabel ? (
+              <Badge variant="outline" className="border-current/20 bg-background/70 text-[11px]">
+                {gatewayLabel}
+              </Badge>
+            ) : null}
           </div>
           <p className={compact ? 'text-xs leading-relaxed' : 'text-sm leading-relaxed'}>{message}</p>
-          {!isReady && (blockers.length > 0 || requiredActions.length > 0) ? (
+          {showOperatorDetail && !isReady && (blockers.length > 0 || requiredActions.length > 0) ? (
             <div className="rounded-xl bg-background/70 px-3 py-2 text-xs leading-relaxed">
               <p className="font-semibold">Para habilitar cobros online:</p>
               <ul className="mt-1 space-y-1">
