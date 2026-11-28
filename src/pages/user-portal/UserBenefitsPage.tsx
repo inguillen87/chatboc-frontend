@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, History, Loader2, Wallet } from 'lucide-react';
+import { AlertCircle, Award, History, Loader2, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -178,8 +178,38 @@ const UserBenefitsPage = () => {
                 <Wallet className="h-5 w-5 text-primary" />
                 <span className="text-sm text-muted-foreground">Saldo actual</span>
               </div>
-              <p className="text-3xl font-semibold">{summary.points.toLocaleString()} pts</p>
+              <p className="text-3xl font-semibold">{Number(summary.points ?? 0).toLocaleString('es-AR')} pts</p>
             </div>
+            {summary.level ? (
+              <div className="space-y-2 sm:col-span-2" data-testid="participation-level">
+                <div className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <span className="text-sm text-muted-foreground">Tu nivel</span>
+                </div>
+                <p className="text-2xl font-semibold">{summary.level}</p>
+                {summary.next_level ? (
+                  <>
+                    <div
+                      className="h-2 w-full overflow-hidden rounded-full bg-muted"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={summary.level_progress ?? 0}
+                      aria-label={`Progreso hacia ${summary.next_level}`}
+                    >
+                      <div className="h-full rounded-full bg-primary transition-[width] duration-700"
+                        style={{ width: `${summary.level_progress ?? 0}%` }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Te faltan {Number(summary.points_to_next_level ?? 0).toLocaleString('es-AR')} puntos para ser {summary.next_level}.
+                      Participá en encuestas y votaciones para sumar.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Llegaste al nivel más alto. ¡Gracias por participar!</p>
+                )}
+              </div>
+            ) : null}
             {summary.hasParticipationMetrics ? (
               <>
                 <div className="rounded-lg bg-muted/30 p-3">
