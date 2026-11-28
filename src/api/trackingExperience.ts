@@ -85,3 +85,30 @@ export async function sendTrackingSupportMessage({
     pin: pin || null,
   });
 }
+
+/** One rating (1 to 5) for a finished claim. The PIN travels as a header, never in the body or the URL. */
+export async function sendClaimSatisfaction({
+  endpoint,
+  pin,
+  rating,
+}: {
+  endpoint: string;
+  pin: string;
+  rating: number;
+}): Promise<TrackingRecord> {
+  if (!/^\/api\/public\/tracking\/claims\/\d{1,10}\/satisfaction$/.test(endpoint)) throw new Error("satisfaction_endpoint_invalid");
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error("satisfaction_rating_invalid");
+  return apiFetch<TrackingRecord>(endpoint, {
+    method: "POST",
+    body: { rating },
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitEntityToken: true,
+    omitChatSessionId: true,
+    omitTenant: true,
+    suppressPanel401Redirect: true,
+    singleAttempt: true,
+    pin,
+  });
+}
