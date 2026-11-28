@@ -32,8 +32,15 @@ export const useCartCount = (enabled = true): number => {
             sum + (Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 0), 0);
           setSnapshot({ scope, count });
         })
-        .catch(() => {
-          if (current() && request === sequence) setSnapshot({ scope, count: 0 });
+        .catch((reason) => {
+          if (!current() || request !== sequence) return;
+          // A read cut short while the cart is being written keeps the last
+          // count and asks again shortly; only a real failure clears it.
+          if (reason instanceof DOMException && reason.name === 'AbortError') {
+            window.setTimeout(() => { if (current() && request === sequence) read(); }, 400);
+            return;
+          }
+          setSnapshot({ scope, count: 0 });
         });
     };
     const unsubscribe = subscribeMarketCartChanges((change) => {
