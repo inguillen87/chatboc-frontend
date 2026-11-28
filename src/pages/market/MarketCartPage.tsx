@@ -22,7 +22,7 @@ import {
   startMarketCheckout,
 } from '@/api/market';
 import { MarketCartItem, MarketProduct } from '@/types/market';
-import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
+import { loadMarketContact, saveMarketContact, subscribeMarketCartChanges } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
@@ -102,7 +102,23 @@ export default function MarketCartPage() {
     queryKey: ['marketCart', tenantSlug],
     queryFn: () => fetchMarketCart(tenantSlug),
     enabled: Boolean(tenantSlug),
+    // The cart is the buyer's live state: always re-read it on arrival.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
+
+  // Stay in step with every other cart surface (product page, chat, navbar).
+  // A first read can also land before the buyer's anonymous identity settles
+  // on a cold load, so read once more shortly after arriving.
+  useEffect(() => {
+    if (!tenantSlug) return undefined;
+    const refresh = () => { void queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] }); };
+    const unsubscribe = subscribeMarketCartChanges((change) => {
+      if (change.tenantSlug === tenantSlug) refresh();
+    });
+    const settle = window.setTimeout(refresh, 1500);
+    return () => { unsubscribe(); window.clearTimeout(settle); };
+  }, [queryClient, tenantSlug]);
 
   const rewardsQuery = useQuery({
     queryKey: ['marketRewardsProfile', tenantSlug],
@@ -629,50 +645,23 @@ export default function MarketCartPage() {
               </div>
               <div className="space-y-2">
                 <h2 className="text-2xl font-semibold leading-tight sm:text-3xl">
-                  Marketplace listo para compartir
+                  {itemsCount > 0 ? `Tu carrito tiene ${itemsCount} ${itemsCount === 1 ? 'producto' : 'productos'}` : 'Tu carrito'}
                 </h2>
-                {heroSubtitle ? <p className="max-w-2xl text-base text-muted-foreground">{heroSubtitle}</p> : null}
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border bg-muted/40 p-4">
-                  <p className="text-xs uppercase text-muted-foreground">Catálogo</p>
-                  <p className="text-xl font-semibold">{catalogProducts.length || 0} ítems</p>
-                  <p className="text-xs text-muted-foreground">Fotos, descripciones y filtros por categoría.</p>
-                </div>
-                <div className="rounded-xl border bg-muted/40 p-4">
-                  <p className="text-xs uppercase text-muted-foreground">Canjes</p>
-                  <p className="text-xl font-semibold">{catalogProducts.filter((p) => p.points).length} opciones</p>
-                  <p className="text-xs text-muted-foreground">Puntos y beneficios en un mismo flujo.</p>
-                </div>
-                <div className="rounded-xl border bg-muted/40 p-4">
-                  <p className="text-xs uppercase text-muted-foreground">Carrito</p>
-                  <p className="text-xl font-semibold">Link activo</p>
-                  <p className="break-all text-xs text-muted-foreground">
-                    {buildTenantPath('/cart', tenantSlug)}
-                  </p>
-                </div>
-                <div className="rounded-xl border bg-muted/40 p-4">
-                  <p className="text-xs uppercase text-muted-foreground">Valoración</p>
-                  <p className="text-xl font-semibold">
-                    {averageRating ? `${averageRating} ★` : 'Listo'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Fichas detalladas y puntaje de clientes.</p>
-                </div>
+                <p className="max-w-2xl text-base text-muted-foreground">
+                  {itemsCount > 0
+                    ? 'Revisá el resumen y finalizá cuando quieras. Te confirmamos el pedido por WhatsApp o por este canal.'
+                    : heroSubtitle || 'Elegí productos del catálogo y sumalos al carrito.'}
+                </p>
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <Button size="lg" className="gap-2" onClick={scrollToProducts}>
-                  <Sparkles className="h-4 w-4" /> Explorar catálogo
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="gap-2"
-                  onClick={() => setShowMobileCart(true)}
-                  disabled={!cartItems.length}
-                >
-                  Seguir comprando
+                {itemsCount > 0 ? (
+                  <Button size="lg" className="gap-2" onClick={handleCheckout} disabled={checkoutMutation.isPending || Boolean(checkoutBlockedReason)}>
+                    <ShoppingBag className="h-4 w-4" aria-hidden="true" /> Finalizar pedido
+                  </Button>
+                ) : null}
+                <Button size="lg" variant={itemsCount > 0 ? 'outline' : 'default'} className="gap-2" onClick={scrollToProducts}>
+                  <Sparkles className="h-4 w-4" aria-hidden="true" /> {itemsCount > 0 ? 'Seguir comprando' : 'Ver productos'}
                 </Button>
               </div>
             </div>
