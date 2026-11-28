@@ -104,7 +104,7 @@ export default function SecureCheckoutNotice({
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2 py-1">
               <ShieldCheck className="h-3 w-3" />
-              Estado por webhook
+              Confirmación automática
             </span>
           </div>
         </div>

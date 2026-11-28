@@ -150,7 +150,10 @@ function MarketCartSession({ tenantSlug, disabled, children }: ProviderProps & {
     // read must not leave previous customer/checkout authority usable in this view.
     setSnapshot(emptySnapshot());
     if (tenantSlug) persistStoredCart(tenantSlug, { items: [], totalAmount: null, totalPoints: null });
-    setError(reason instanceof Error && reason.message ? reason.message : fallback);
+    // An aborted read ("Request context retired") is transport noise, not a message for buyers.
+    const message = reason instanceof Error && reason.name !== 'AbortError' && reason.message
+      ? reason.message : fallback;
+    setError(message);
   }, [tenantSlug]);
 
   const refreshCart = useCallback((): Promise<void> => {
@@ -170,7 +173,17 @@ function MarketCartSession({ tenantSlug, disabled, children }: ProviderProps & {
     op.promise = Promise.resolve().then(async () => {
       if (!current(op)) return;
       try {
-        const response = await fetchMarketCart(tenantSlug);
+        let response;
+        try {
+          response = await fetchMarketCart(tenantSlug);
+        } catch (first) {
+          // A read cut short while the page settles (session or tenant context
+          // swapping on a cold load) is retried once before telling the buyer.
+          if (!(first instanceof DOMException && first.name === 'AbortError') || !current(op)) throw first;
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          if (!current(op)) return;
+          response = await fetchMarketCart(tenantSlug);
+        }
         if (current(op)) accept(response);
       } catch (reason) {
         if (current(op)) reject(reason, 'No se pudo cargar el carrito.');
