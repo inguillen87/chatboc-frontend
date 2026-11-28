@@ -916,3 +916,19 @@ describe('cart pages that never load the catalog', () => {
   });
 });
 
+
+describe('concurrent cart reads', () => {
+  beforeEach(() => apiFetchMock.mockReset());
+  it('share one request until a change is announced', async () => {
+    let release!: (value: unknown) => void;
+    apiFetchMock.mockImplementationOnce(() => new Promise(done => { release = done; }))
+      .mockResolvedValue({ items: [{ id: '2', quantity: 2 }] });
+    const first = fetchMarketCart('shared-store');
+    const second = fetchMarketCart('shared-store');
+    for (let i = 0; i < 20 && !release; i += 1) await new Promise(done => setTimeout(done, 0));
+    release({ items: [{ id: '1', quantity: 1 }] });
+    expect(await first).toBe(await second);
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect((await fetchMarketCart('shared-store')).items[0].id).toBe('2');
+  });
+});
