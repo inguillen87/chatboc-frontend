@@ -1653,10 +1653,11 @@ function ChatWidgetInner({
     scopeKey: JSON.stringify([widgetId, greetingTenant]),
     bindingKey: `${location.pathname}${location.search}`,
     messages: proactiveMessages,
-    // A published reader embedded in this page is already the invitation to ask;
-    // only a greeting the organization explicitly forces is raised over it.
+    // On a phone, a published reader embedded in this page is already the
+    // invitation to ask; only a greeting the organization explicitly forces is
+    // raised over it. On a wider screen the greeting has room beside it.
     ready: Boolean(entityInfo) && !isProfileLoading && !profileError && greetingProfileTenant === greetingTenant
-      && (!embeddedInstitutionalReader || entityInfo?.force_proactive === true),
+      && (!embeddedInstitutionalReader || !isMobileView || entityInfo?.force_proactive === true),
     isOpen, isMobile: isMobileView, containerRef: widgetContainerRef,
     initialDelay: entityInfo?.force_proactive === true ? 3000 : ctaMessage?.trim() ? 2500 : 6000,
   });
@@ -3386,13 +3387,13 @@ function ChatWidgetInner({
     return null;
   }
 
-  // The page already carries the organization's published reader: a second
-  // assistant floating over it, with the platform's mascot, competes with the
-  // organization's own portal and on a phone covers its options. While closed,
-  // the launcher steps aside. An open conversation is never taken away, and an
+  // On a phone the embedded reader fills the column, and a second assistant
+  // floating over it covers the edge of its options. While closed, the launcher
+  // steps aside there. On a wider screen there is room for both, and the
+  // launcher with its mascot stays. An open conversation is never taken away, and an
   // organization that forces its greeting keeps the launcher that carries it.
   if (
-    mode === "standalone" && embeddedInstitutionalReader && !isOpen &&
+    mode === "standalone" && isMobileView && embeddedInstitutionalReader && !isOpen &&
     entityInfo?.force_proactive !== true
   ) {
     return null;
