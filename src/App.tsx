@@ -440,6 +440,8 @@ function AppRoutes() {
   const rutasSinWidget = [
     // '/', // ENABLE WIDGET ON LANDING PAGE
     "/iframe",
+    // A voucher is a ticket shown at a counter; "v" is not an organization.
+    "/v",
     "/demo",
     "/demo-catalogs",
     "/e",

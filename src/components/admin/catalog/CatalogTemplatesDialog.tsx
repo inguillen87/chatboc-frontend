@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { ApiError, apiFetch } from '@/utils/api';
 
-type CatalogTemplate = { key: string; title: string; summary: string; items: number };
+type CatalogTemplate = { key: string; title: string; summary: string; items: number; recommended?: boolean };
 
 const base = (slug: string) => `/api/admin/tenants/${encodeURIComponent(slug)}/marketplace`;
 
@@ -99,13 +99,30 @@ export default function CatalogTemplatesDialog({ tenantSlug, onApplied }: { tena
             <p className="text-sm text-muted-foreground">No hay plantillas disponibles.</p>
           ) : (
             templates.map((template) => (
-              <div key={template.key} className="flex items-start justify-between gap-3 rounded-lg border p-3">
+              <div
+                key={template.key}
+                className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${
+                  template.recommended ? 'border-primary/60 bg-primary/5' : ''
+                }`}
+              >
                 <div>
-                  <p className="font-medium">{template.title}</p>
+                  <p className="font-medium">
+                    {template.title}
+                    {template.recommended ? (
+                      <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        Para tu organización
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="text-sm text-muted-foreground">{template.summary}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{template.items} ítems</p>
                 </div>
-                <Button size="sm" onClick={() => void apply(template)} disabled={busy !== null}>
+                <Button
+                  size="sm"
+                  variant={template.recommended ? 'default' : 'outline'}
+                  onClick={() => void apply(template)}
+                  disabled={busy !== null}
+                >
                   {busy === template.key ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Cargar'}
                 </Button>
               </div>

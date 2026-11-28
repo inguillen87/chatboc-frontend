@@ -2,6 +2,7 @@ export const TENANT_ROUTE_PREFIXES = ['m', 'market', 't', 'tenant', 'municipio',
 
 export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'e',
+  'v', // /v/:code is a voucher, not an organization
   'iframe',
   'embed',
   'widget',
