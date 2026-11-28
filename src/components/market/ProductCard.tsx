@@ -52,7 +52,11 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
     }
   };
   const currency = (product.currency ?? 'ARS').toUpperCase();
-  const displayPrice = displayMarketPrice(product.priceText, product.price, currency) ?? '';
+  // A redemption shows its points once («6.000 pts»), not also as «PTS 6.000».
+  const displayPrice = product.points && (currency === 'PTS' || !product.price)
+    ? ''
+    : displayMarketPrice(product.priceText, product.price, currency) ?? '';
+  const [imageFailed, setImageFailed] = React.useState(false);
   const modalityLabel = marketModalityLabel(product.modality);
   const hasRating = typeof product.rating === 'number' && typeof product.ratingCount === 'number';
   const validation = getMarketCommercialValidation(product, product.inventory);
@@ -60,7 +64,7 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
 
   return (
     <Card className="flex h-full flex-col overflow-hidden shadow-sm transition hover:shadow-md">
-      {product.imageUrl ? (
+      {product.imageUrl && !imageFailed ? (
         <div className="group relative aspect-square w-full overflow-hidden bg-muted">
           {detailHref ? <Link to={detailHref} tabIndex={-1} aria-hidden="true" className="absolute inset-0 z-[1]" /> : null}
           <img
@@ -68,6 +72,7 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
             alt={product.imageAlt || product.name}
             className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.03]"
             loading="lazy"
+            onError={() => setImageFailed(true)}
           />
           {product.galleryUrls?.length ? (
             <span className="absolute bottom-3 right-3 rounded-full bg-black/65 px-2 py-1 text-xs font-medium text-white">

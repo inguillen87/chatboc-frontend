@@ -90,4 +90,27 @@ describe('ProductCard', () => {
     render(<MemoryRouter><ProductCard product={{ ...baseProduct, imageUrl: 'https://img.test/a.jpg' }} onAdd={vi.fn()} detailHref="/t/demo/product/prod-1" /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Caja de herramientas' })).toHaveAttribute('href', '/t/demo/product/prod-1');
   });
+
+  it('shows a redemption once in points, with a readable badge', () => {
+    render(
+      <MemoryRouter>
+        <ProductCard product={{ ...baseProduct, name: 'Beca', modality: 'canje', points: 6000, price: 6000, priceText: '6000', currency: 'PTS' }} onAdd={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('6.000 pts')).toBeTruthy();
+    expect(screen.queryByText(/PTS/)).toBeNull();
+    expect(screen.getByText('Canje')).toBeTruthy();
+  });
+
+  it('falls back to the placeholder when the photo does not load', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ProductCard product={{ ...baseProduct, imageUrl: 'https://example.test/rota.jpg' }} onAdd={vi.fn()} />
+      </MemoryRouter>,
+    );
+    const image = container.querySelector('img');
+    expect(image).toBeTruthy();
+    fireEvent.error(image as HTMLImageElement);
+    expect(container.querySelector('img[src="https://example.test/rota.jpg"]')).toBeNull();
+  });
 });
