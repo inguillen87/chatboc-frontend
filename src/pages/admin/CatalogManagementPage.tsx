@@ -34,6 +34,7 @@ import { CatalogPromotion, MarketplaceReadiness } from '@/types/catalog';
 import { Progress } from '@/components/ui/progress';
 import CatalogQualityCommandCenter from '@/components/admin/CatalogQualityCommandCenter';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
+import CatalogTemplatesDialog from '@/components/admin/catalog/CatalogTemplatesDialog';
 import ProductImageManager from '@/components/admin/catalog/ProductImageManager';
 import {
   getProductGalleryUrls,
@@ -543,6 +544,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
               <CatalogUploadWizard tenantSlug={effectiveTenantSlug || ''} onFinish={() => { setUploadOpen(false); void loadProducts(); }} />
             </DialogContent>
           </Dialog>
+          <CatalogTemplatesDialog tenantSlug={effectiveTenantSlug || ''} onApplied={() => void loadProducts()} />
           <Button onClick={() => void loadProducts()} variant="outline" size="sm" disabled={!effectiveTenantSlug || loading}>
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
             Recargar
