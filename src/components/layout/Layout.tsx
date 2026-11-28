@@ -95,7 +95,6 @@ const Layout = () => {
           {'[data-workspace-shell] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}
         </style>
       ) : null}
-      {!hostBinding && !isViewportWorkspace && !isFocusedPublicExperience ? <DemoModeBanner /> : null}
       {/* These workspaces scroll inside main, so reserve the navbar's actual height in the flex shell. */}
       {!isFocusedPublicExperience ? <Navbar inFlow={isViewportWorkspace} /> : null}
       {isViewportWorkspace ? (
@@ -124,6 +123,11 @@ const Layout = () => {
               : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
         }
       >
+        {/* Inside main, below the fixed navbar: before it, the notice sat hidden
+            behind the bar and only showed up as unexplained empty space. */}
+        {!hostBinding && !isViewportWorkspace && !isFocusedPublicExperience ? (
+          <div className="mb-3 overflow-hidden rounded-lg"><DemoModeBanner /></div>
+        ) : null}
         <Outlet />
       </main>
       {!isFooterlessWorkspace ? (
