@@ -27,7 +27,9 @@ import {
   UploadCloud,
   AlertTriangle,
   X,
+  TicketCheck,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
 import { CatalogPromotion, MarketplaceReadiness } from '@/types/catalog';
@@ -554,6 +556,13 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
             </DialogContent>
           </Dialog>
           <CatalogTemplatesDialog tenantSlug={effectiveTenantSlug || ''} onApplied={() => void loadProducts()} />
+          {effectiveTenantSlug ? (
+            <Button variant="outline" asChild>
+              <Link to={`/t/${encodeURIComponent(effectiveTenantSlug)}/admin/vouchers`}>
+                <TicketCheck className="mr-2 h-4 w-4" /> Validar código
+              </Link>
+            </Button>
+          ) : null}
           <Button onClick={() => void loadProducts()} variant="outline" size="sm" disabled={!effectiveTenantSlug || loading}>
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
             Recargar
