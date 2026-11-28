@@ -40,7 +40,7 @@ export default function VoucherPage() {
         setState('ready');
       })
       .catch((error) => {
-        if (active) setState(error instanceof ApiError && error.status === 404 ? 'missing' : 'error');
+        if (active) setState(error instanceof ApiError && (error.status === 422 || error.status === 404) ? 'missing' : 'error');
       });
     return () => {
       active = false;
