@@ -12,6 +12,7 @@ import {InstitutionalEasyRead} from './InstitutionalEasyRead';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
 import {InstitutionalLocality,mentionsLocality,readInstitutionalLocality,rememberInstitutionalLocality} from './InstitutionalLocality';
 import {InstitutionalDocumentDownload,isHandoutSource} from './InstitutionalDocumentDownload';
+import {InstitutionalAnswerFeedback} from './InstitutionalAnswerFeedback';
 import {institutionalChoiceLabel,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalPresentationMode} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
@@ -486,6 +487,8 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
                <KnowledgeSourceMetadata source={source} compact mode={mode}/>
                <button type="button" disabled={busy||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(source.id);changeSources(true);}} aria-haspopup="dialog">Ver fuente<span className="sr-only">: {source.title}</span></button>
                {source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title}{source.pagination!=='logical_snapshot'?` · ${quote.page??source.pages?.join(', ')}`:''}</cite></blockquote>)}</div>)}</details>
+            {mode==='public'&&workspace.revision&&knowledge&&node.id!==knowledge.start&&node.sources.length>0&&!busy?
+              <InstitutionalAnswerFeedback workspace={workspace} nodeId={node.id}/>:null}
           </article>;})}
           {mode==='public'&&!busy&&!error&&!showSources&&workspace.audio_reading&&workspace.revision&&nodes.length>0?
             <div id={servicesLayout?TENANT_READ_ALOUD_TARGET_ID:undefined}><InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading} fallbackText={nodes.map(node=>`${node.title}. ${node.text}`).join('\n\n')}/></div>:null}

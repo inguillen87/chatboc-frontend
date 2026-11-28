@@ -107,3 +107,32 @@ describe('metrics contract',()=>{
   });
   it('accepts the documented response',()=>{expect(parseQuestionMetrics(metrics(),admin()).totals.uncovered).toBe(4);});
 });
+
+describe('answer feedback in the administration metrics',()=>{
+  const feedbackCopy={feedback_title:'Valoración sintética',feedback_description:'Descripción de valoración.',feedback_helpful:'Etiqueta sirvió',
+    feedback_unhelpful:'Etiqueta no sirvió',feedback_rate:'Etiqueta tasa útil',feedback_by_node:'Ranking no sirvió',feedback_empty:'Sin valoraciones sintéticas.'};
+  const open=async(payload:Record<string,unknown>)=>{
+    const user=userEvent.setup();transport.fetch.mockResolvedValueOnce(admin());render(view());
+    const toggle=await screen.findByRole('button',{name:LABEL});
+    transport.fetch.mockResolvedValueOnce(payload);await user.click(toggle);
+    await screen.findByRole('heading',{name:copy.title});
+  };
+
+  it('shows the marks and the topics that helped least',async()=>{
+    await open(metrics({ui:{...copy,...feedbackCopy},feedback:{helpful:3,unhelpful:1,helpful_rate:0.75,
+      unhelpful_by_node:[{node_id:'requirements',count:1,title:'Requisitos de la consulta',is_start:false}]}}));
+    const section=within(screen.getByRole('region',{name:feedbackCopy.feedback_title}));
+    for(const [label,value] of [[feedbackCopy.feedback_helpful,'3'],[feedbackCopy.feedback_unhelpful,'1'],[feedbackCopy.feedback_rate,'75 %']])
+      expect(section.getByText(label).nextElementSibling).toHaveTextContent(new RegExp(`^${value}$`));
+    expect(within(section.getByRole('region',{name:feedbackCopy.feedback_by_node})).getByRole('row',{name:'Requisitos de la consulta 1'})).toBeInTheDocument();
+  });
+
+  it('says so when nobody marked an answer, and stays out of the way on older or malformed servers',async()=>{
+    await open(metrics({ui:{...copy,...feedbackCopy},feedback:{helpful:0,unhelpful:0,helpful_rate:null,unhelpful_by_node:[]}}));
+    expect(screen.getByText(feedbackCopy.feedback_empty)).toBeInTheDocument();
+    cleanup();
+    await open(metrics({feedback:{helpful:'3'}}));
+    expect(screen.queryByText(feedbackCopy.feedback_title)).not.toBeInTheDocument();
+    expect(screen.getByText(copy.privacy)).toBeInTheDocument();
+  });
+});
