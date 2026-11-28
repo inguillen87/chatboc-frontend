@@ -113,7 +113,11 @@ const rememberMarketPublicApiContract = (
 ) => {
   const key = normalizeTenantContractKey(tenantSlug);
   if (!key || !contract) return;
+  const firstContract = !marketPublicApiContracts.has(key);
   marketPublicApiContracts.set(key, contract);
+  // A cart read that ran before this contract used the legacy endpoint; let
+  // every cart surface (navbar, cart page) read again through the right one.
+  if (firstContract && tenantSlug) notifyMarketCartChanged(tenantSlug, captureChatbocSessionRevision());
 };
 
 const inflightMarketCatalogs = new Map<string, Promise<unknown>>();
