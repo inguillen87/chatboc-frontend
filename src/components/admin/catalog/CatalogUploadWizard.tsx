@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { CatalogPreviewV1, ColumnMapping, CatalogField } from '@/types/catalog-import';
 import { ImportMappingTable } from './ImportMappingTable';
 import { cn } from '@/lib/utils';
-import { looksLikeImageColumn } from '@/utils/marketImages';
+import { suggestCatalogField } from './suggestCatalogField';
 import {catalogImportUserError,safeCatalogImportDetail,type CatalogImportUserError} from '@/utils/catalogImportError';
 
 interface CatalogUploadWizardProps {
@@ -182,16 +182,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       const initialMapping: ColumnMapping = {};
       if (response.columns) {
         response.columns.forEach(col => {
-          const lower = col.label.toLowerCase();
-          if (lower.includes('precio') || lower.includes('price')) initialMapping[col.key] = 'price';
-          else if (lower.includes('nombre') || lower.includes('producto') || lower.includes('descripcion')) initialMapping[col.key] = 'product_name';
-          else if (lower.includes('sku') || lower.includes('codigo')) initialMapping[col.key] = 'sku';
-          else if (lower.includes('stock')) initialMapping[col.key] = 'stock';
-          else if (lower.includes('categoria')) initialMapping[col.key] = 'category';
-          else if (lower.includes('galeria') || lower.includes('gallery') || lower.includes('imagenes') || lower.includes('images')) initialMapping[col.key] = 'gallery_urls';
-          else if (lower.includes('alt')) initialMapping[col.key] = 'image_alt';
-          else if (looksLikeImageColumn(lower)) initialMapping[col.key] = 'image_url';
-          else initialMapping[col.key] = 'ignore';
+          initialMapping[col.key] = suggestCatalogField(col.label);
         });
       }
 
