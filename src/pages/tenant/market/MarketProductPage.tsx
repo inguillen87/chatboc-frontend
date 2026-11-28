@@ -1,3 +1,4 @@
+import ProductPlaceholder from '@/components/market/ProductPlaceholder';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -303,8 +304,8 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                 loading="lazy"
               />
             ) : (
-              <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-sm text-muted-foreground dark:border-slate-700 dark:bg-slate-900">
-                Imagen pendiente del catalogo
+              <div className="aspect-[4/3] w-full overflow-hidden rounded-md" role="img" aria-label={product.name}>
+                <ProductPlaceholder category={product.category} />
               </div>
             )}
 

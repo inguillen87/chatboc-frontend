@@ -3,6 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MarketProduct } from '@/types/market';
+import ProductPlaceholder from './ProductPlaceholder';
 import { displayMarketPrice } from '@/utils/currency';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
 import { ExternalLink, MessageCircle, Share2, ShoppingBag, Sparkles, Star } from 'lucide-react';
@@ -43,11 +44,8 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding }: Pro
           ) : null}
         </div>
       ) : (
-        <div className="flex aspect-[4/3] w-full items-center justify-center bg-muted text-muted-foreground">
-          <div className="text-center">
-            <ShoppingBag className="mx-auto h-8 w-8" />
-            {product.imageStatus === 'missing' ? <p className="mt-2 text-xs">Imagen pendiente</p> : null}
-          </div>
+        <div className="aspect-[4/3] w-full" role="img" aria-label={product.category ? `${product.name}, ${product.category}` : product.name}>
+          <ProductPlaceholder category={product.category} />
         </div>
       )}
 
