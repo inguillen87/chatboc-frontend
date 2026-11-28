@@ -121,21 +121,39 @@ const rememberMarketPublicApiContract = (
 };
 
 const inflightMarketCatalogs = new Map<string, Promise<unknown>>();
+const inflightMarketContractProbes = new Map<string, Promise<void>>();
 
 /**
  * The cart's guest-safe endpoint is published with the catalog. A cart read or
  * write that runs before any catalog load would otherwise fall back to the
  * legacy endpoint, which keys a different cart, and show the buyer an empty
- * one. When a catalog load for this store is in flight (the store pages start
- * it alongside the cart), wait for it first; otherwise behave as before.
+ * one. Wait for a catalog load already in flight, or ask for the contract with
+ * a one-product probe.
  */
 const ensureMarketPublicApiContract = async (tenantSlug: string): Promise<void> => {
   const key = normalizeTenantContractKey(tenantSlug);
   if (!key || marketPublicApiContracts.has(key)) return;
   const inflight = inflightMarketCatalogs.get(key);
-  if (inflight) await inflight.catch(() => undefined);
-  // Let the catalog's own continuation record the contract before resolving.
-  await Promise.resolve();
+  if (inflight) {
+    await inflight.catch(() => undefined);
+    // Let the catalog's own continuation record the contract before resolving.
+    await Promise.resolve();
+    if (marketPublicApiContracts.has(key)) return;
+  }
+  // Pages such as checkout read the cart without loading the catalog: ask for
+  // the contract with a one-product probe. Any failure keeps the old fallback.
+  let probe = inflightMarketContractProbes.get(key);
+  if (!probe) {
+    probe = apiFetch<MarketCatalogResponse>(
+      `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog?contract=marketplace&limit=1`,
+      { tenantSlug, suppressPanel401Redirect: true, omitChatSessionId: true },
+    ).then((response) => {
+      const contract = normalizeMarketCatalogResponse(response).public_api;
+      if (contract && !marketPublicApiContracts.has(key)) marketPublicApiContracts.set(key, contract);
+    }).catch(() => undefined).finally(() => { inflightMarketContractProbes.delete(key); });
+    inflightMarketContractProbes.set(key, probe);
+  }
+  await probe;
 };
 
 const resolveMarketCartEndpoint = (
