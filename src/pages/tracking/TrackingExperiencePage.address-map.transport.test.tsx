@@ -156,7 +156,7 @@ describe('protected tracking address with real tracking transport', () => {
     renderPage(); await screen.findByText(/Registro m map a/i);
     fireEvent.change(screen.getByLabelText('PIN del reclamo'), { target: { value: '8'.repeat(6) } });
     responseFor = () => json({ error: 'claim_not_found' }, 404);
-    fireEvent.click(screen.getByRole('button', { name: 'Actualizar estado' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ }));
     await screen.findByRole('alert');
     expect(screen.queryByText(address)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Copiar dirección' })).not.toBeInTheDocument();

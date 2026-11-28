@@ -248,7 +248,7 @@ describe("TrackingExperiencePage support contract", () => {
     expect(pinInput).toHaveAttribute("type", "text");
     expect(screen.getByRole("button", { name: "Ocultar PIN" })).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Actualizar estado" }));
+    fireEvent.click(screen.getByRole("button", { name: /^(Ver|Actualizar) estado$/ }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Ingresá el PIN");
