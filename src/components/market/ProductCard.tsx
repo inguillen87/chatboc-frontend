@@ -46,9 +46,9 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
   const canAddToCart = validation.canStartCheckout && product.disponible !== false;
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+    <Card className="flex h-full flex-col overflow-hidden shadow-sm transition hover:shadow-md">
       {product.imageUrl ? (
-        <div className="group relative aspect-[4/3] w-full overflow-hidden bg-muted">
+        <div className="group relative aspect-square w-full overflow-hidden bg-muted">
           {detailHref ? <Link to={detailHref} tabIndex={-1} aria-hidden="true" className="absolute inset-0 z-[1]" /> : null}
           <img
             src={product.imageUrl}
@@ -68,14 +68,14 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
           ) : null}
         </div>
       ) : (
-        <div className="aspect-[4/3] w-full" role="img" aria-label={product.category ? `${product.name}, ${product.category}` : product.name}>
+        <div className="aspect-square w-full" role="img" aria-label={product.category ? `${product.name}, ${product.category}` : product.name}>
           <ProductPlaceholder category={product.category} />
         </div>
       )}
 
-      <CardHeader className="space-y-2 pb-2">
+      <CardHeader className="space-y-1 p-3 pb-1 sm:p-4 sm:pb-1">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="line-clamp-2 text-lg font-semibold leading-snug">
+          <CardTitle className="line-clamp-2 text-sm font-semibold leading-snug sm:text-base">
             {detailHref ? (
               <Link to={detailHref} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
                 {product.name}
@@ -88,17 +88,6 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
             </Badge>
           ) : null}
         </div>
-        {product.category ? (
-          <Badge variant="secondary" className="w-fit text-xs font-medium">
-            {product.category}
-          </Badge>
-        ) : null}
-        {product.promoInfo ? (
-          <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-xs font-semibold text-amber-800">
-            <Sparkles className="mr-1 h-3.5 w-3.5" />
-            {product.promoInfo}
-          </Badge>
-        ) : null}
         {hasRating ? (
           <div className="flex items-center gap-1 text-sm text-amber-600">
             <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
@@ -106,33 +95,19 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
             <span className="text-xs text-muted-foreground">({product.ratingCount})</span>
           </div>
         ) : null}
-        {product.descriptionShort ? (
-          <p className="line-clamp-2 text-sm text-muted-foreground">{product.descriptionShort}</p>
-        ) : product.description ? (
-          <p className="line-clamp-2 text-sm text-muted-foreground">{product.description}</p>
-        ) : null}
       </CardHeader>
 
-      <CardContent className="flex flex-wrap items-center gap-3 pb-4">
-        {displayPrice ? <div className="text-xl font-bold text-primary">{displayPrice}</div> : null}
+      <CardContent className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-0 sm:px-4">
+        {displayPrice ? <div className="text-lg font-bold text-primary sm:text-xl">{displayPrice}</div> : null}
         {product.points ? (
           <Badge variant="secondary" className="text-sm font-medium">
             {product.points} pts
           </Badge>
         ) : null}
-        {product.tags?.length ? (
-          <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-            {product.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="rounded-full bg-muted px-2 py-1">
-                #{tag}
-              </span>
-            ))}
-          </div>
-        ) : null}
       </CardContent>
 
-      <CardFooter className="mt-auto flex flex-col gap-2 border-t bg-card/50 p-4">
-        <div className="grid w-full grid-cols-2 gap-2">
+      <CardFooter className="mt-auto flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0">
+        <div className="flex w-full gap-2">
           {product.checkout_type === 'mercadolibre' && product.external_url && canAddToCart ? (
             <Button
               className="w-full bg-[#FFE600] font-semibold text-[#2D3277] transition-all hover:scale-105 hover:bg-[#FDD835] hover:shadow-md"
@@ -155,7 +130,7 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
             </Button>
           ) : (
             <Button
-              className="w-full"
+              className="min-w-0 flex-1"
               onClick={() => {
                 if (canAddToCart) {
                   onAdd(product.id);
@@ -176,22 +151,17 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
             </Button>
           )}
           <Button
-            className="w-full"
+            className="shrink-0"
             variant="outline"
-            size="default"
+            size="icon"
             onClick={() => { void shareProduct(); }}
             disabled={!product.publicUrl && !product.whatsappShareUrl && !detailHref}
+            aria-label={shareNote ?? `Compartir ${product.name}`}
+            title={shareNote ?? 'Compartir'}
           >
-            <Share2 className="mr-2 h-4 w-4" /> {shareNote ?? 'Compartir'}
+            {shareNote ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
           </Button>
         </div>
-        {product.publicUrl ? (
-          <Button asChild variant="ghost" className="h-9 justify-start px-2 text-xs text-muted-foreground">
-            <a href={product.publicUrl} target="_blank" rel="noreferrer">
-              <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver detalle publico
-            </a>
-          </Button>
-        ) : null}
         {!canAddToCart && validation.reason ? (
           <p className="text-xs text-muted-foreground">{validation.reason}</p>
         ) : null}
