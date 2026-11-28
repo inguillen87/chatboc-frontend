@@ -74,4 +74,14 @@ describe('ProductCard', () => {
     expect(onAdd).not.toHaveBeenCalled();
     expect(onConsult).toHaveBeenCalledWith(blockedProduct, expect.any(String));
   });
+
+  it('shows an imported bare number as a price with currency, and keeps written prices as they are', () => {
+    const { rerender } = render(<ProductCard product={{ ...baseProduct, price: 2900, priceText: '2900' }} onAdd={vi.fn()} />);
+    expect(screen.getByText(/\$\s?2\.900/)).toBeInTheDocument();
+    expect(screen.queryByText('2900')).not.toBeInTheDocument();
+    rerender(<ProductCard product={{ ...baseProduct, price: null, priceText: '1100' }} onAdd={vi.fn()} />);
+    expect(screen.getByText(/\$\s?1\.100/)).toBeInTheDocument();
+    rerender(<ProductCard product={{ ...baseProduct, priceText: 'Desde $ 900 por kilo' }} onAdd={vi.fn()} />);
+    expect(screen.getByText('Desde $ 900 por kilo')).toBeInTheDocument();
+  });
 });

@@ -18,7 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency } from '@/utils/currency';
+import { displayMarketPrice, formatCurrency } from '@/utils/currency';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
 
@@ -182,11 +182,7 @@ const buildProductWhatsAppUrl = (product: MarketProduct, tenantSlug: string, pro
   const productPath = buildTenantPath(`/product/${productSlug}`, tenantSlug);
   const absoluteProductUrl =
     typeof window !== 'undefined' ? `${window.location.origin}${productPath}` : product.publicUrl ?? productPath;
-  const price =
-    product.priceText ??
-    (product.price !== null && product.price !== undefined
-      ? formatCurrency(product.price, (product.currency ?? 'ARS').toUpperCase())
-      : null);
+  const price = displayMarketPrice(product.priceText, product.price, product.currency ?? 'ARS');
   const message = [
     `Hola, quiero consultar por ${product.name}.`,
     price ? `Precio publicado: ${price}.` : null,
@@ -319,11 +315,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                   Precio
                 </div>
                 <div className="mt-2 text-xl font-bold text-primary">
-                  {product.priceText
-                    ? product.priceText
-                    : product.price !== null && product.price !== undefined
-                      ? formatCurrency(product.price, (product.currency ?? 'ARS').toUpperCase())
-                      : 'A cotizar'}
+                  {displayMarketPrice(product.priceText, product.price, product.currency ?? 'ARS') ?? 'A cotizar'}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {product.amount_validated === true ? 'Validado por backend' : 'Puede requerir confirmacion'}

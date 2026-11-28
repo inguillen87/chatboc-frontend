@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { fetchMarketCatalog } from '@/api/market';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import ProductCard from '@/components/market/ProductCard';
+import { displayMarketPrice } from '@/utils/currency';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -454,7 +455,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     `Busco: ${product.name}`,
     product.sku ? `SKU: ${product.sku}` : null,
     product.category ? `Categoría: ${product.category}` : null,
-    product.priceText ? `Precio publicado: ${product.priceText}` : null,
+    displayMarketPrice(product.priceText, product.price, product.currency ?? 'ARS') ? `Precio publicado: ${displayMarketPrice(product.priceText, product.price, product.currency ?? 'ARS')}` : null,
     reason ? `Motivo: ${reason}` : 'Necesito confirmar disponibilidad, precio o alternativa.',
     'Quiero que el equipo revise este producto y me responda para completar el pedido.',
   ].filter(Boolean).join('\n');

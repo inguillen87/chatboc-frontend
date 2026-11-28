@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MarketProduct } from '@/types/market';
-import { formatCurrency } from '@/utils/currency';
+import { displayMarketPrice } from '@/utils/currency';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
 import { ExternalLink, MessageCircle, Share2, ShoppingBag, Sparkles, Star } from 'lucide-react';
 
@@ -14,14 +14,9 @@ interface ProductCardProps {
   isAdding?: boolean;
 }
 
-const formatPrice = (value?: number | null, currency = 'ARS'): string => {
-  if (typeof value !== 'number' || Number.isNaN(value)) return '';
-  return formatCurrency(value, currency);
-};
-
 export default function ProductCard({ product, onAdd, onConsult, isAdding }: ProductCardProps) {
   const currency = (product.currency ?? 'ARS').toUpperCase();
-  const displayPrice = product.priceText ?? formatPrice(product.price, currency);
+  const displayPrice = displayMarketPrice(product.priceText, product.price, currency) ?? '';
   const hasRating = typeof product.rating === 'number' && typeof product.ratingCount === 'number';
   const validation = getMarketCommercialValidation(product, product.inventory);
   const canAddToCart = validation.canStartCheckout && product.disponible !== false;
