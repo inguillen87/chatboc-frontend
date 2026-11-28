@@ -5,7 +5,7 @@ import Footer from './Footer';
 import ScrollToTopButton from '../ui/ScrollToTopButton';
 import DemoModeBanner from './DemoModeBanner';
 import { useTenant } from '@/context/TenantContext';
-import { isTenantShellManagedPath } from '@/utils/pageTitles';
+import { isTenantShellManagedPath, isTenantStorefrontPath } from '@/utils/pageTitles';
 
 const Layout = () => {
   const location = useLocation();
@@ -119,6 +119,8 @@ const Layout = () => {
                 ? 'mx-auto w-full max-w-[96rem] flex-1 px-4 py-3 sm:py-5 md:px-8 xl:px-12'
               : isLandingExperience
                 ? 'w-full flex-1 pt-20'
+              : isTenantStorefrontPath(location.pathname)
+                ? 'flex-1 pt-16 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
               : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
         }
       >
