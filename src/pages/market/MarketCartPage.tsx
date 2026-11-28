@@ -2,7 +2,7 @@ import ProductPlaceholder from '@/components/market/ProductPlaceholder';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Copy, Loader2, MessageCircle, QrCode, Search, Share2, ShoppingBag, Sparkles, Tag } from 'lucide-react';
+import { ArrowLeft, Copy, Loader2, MessageCircle, QrCode, Search, Share2, ShoppingBag, Sparkles, Tag } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -521,102 +521,12 @@ export default function MarketCartPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 pb-24 text-foreground sm:pb-12">
-      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
-              {catalogQuery.data?.tenantLogoUrl ? (
-                <img
-                  src={catalogQuery.data.tenantLogoUrl}
-                  alt={catalogQuery.data?.tenantName ?? tenantSlug}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <ShoppingBag className="h-6 w-6" />
-              )}
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Catálogo</p>
-              <h1 className="text-lg font-semibold leading-tight sm:text-xl">
-                {catalogQuery.data?.tenantName ?? tenantSlug}
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex flex-1 items-center gap-2 sm:max-w-md">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar productos"
-                className="pl-9"
-              />
-            </div>
-            <div className="hidden items-center gap-2 sm:flex">
-              <Button variant="outline" size="sm" onClick={handleCopyLink} disabled={!canCopy}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copiar enlace
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleShareWhatsApp} disabled={!canShareWhatsApp}>
-                <MessageCircle className="mr-2 h-4 w-4" />
-                WhatsApp
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleOpenQr} disabled={!shareUrl}>
-                <QrCode className="mr-2 h-4 w-4" />
-                Ver QR
-              </Button>
-              <Badge variant="secondary" className="flex items-center gap-1 px-3 py-1 text-sm">
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.span
-                    key={itemsCount}
-                    className="flex items-center gap-1"
-                    initial={{ scale: 0.8, opacity: 0, y: -4 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.9, opacity: 0, y: 4 }}
-                    transition={{ type: 'spring', stiffness: 240, damping: 18 }}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    {itemsCount}
-                  </motion.span>
-                </AnimatePresence>
-              </Badge>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:hidden">
-            <Button variant="outline" size="sm" className="w-full" onClick={handleCopyLink} disabled={!canCopy}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copiar
-            </Button>
-            <Button variant="outline" size="sm" className="w-full" onClick={handleShareWhatsApp} disabled={!canShareWhatsApp}>
-              <MessageCircle className="mr-2 h-4 w-4" />
-              WhatsApp
-            </Button>
-            <Button variant="outline" size="sm" className="w-full" onClick={handleOpenQr} disabled={!shareUrl}>
-              <QrCode className="mr-2 h-4 w-4" />
-              QR
-            </Button>
-            <Badge variant="secondary" className="flex items-center gap-1 px-3 py-2 text-sm">
-              <AnimatePresence mode="popLayout" initial={false}>
-                <motion.span
-                  key={itemsCount}
-                  className="flex items-center gap-1"
-                  initial={{ scale: 0.9, opacity: 0, y: -2 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.95, opacity: 0, y: 2 }}
-                  transition={{ type: 'spring', stiffness: 240, damping: 18 }}
-                >
-                  <ShoppingBag className="h-4 w-4" />
-                  {itemsCount}
-                </motion.span>
-              </AnimatePresence>
-            </Badge>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
+      {/* The cart is only the cart: what the buyer takes, the total and one next step.
+          The catalog, sharing tools and store-team context live on their own pages. */}
+      <main className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-6 sm:px-6">
+        <Link to={buildTenantPath('/market', tenantSlug)} className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Seguir comprando
+        </Link>
         {confirmation ? (
           <Alert>
             <AlertTitle>Pedido registrado</AlertTitle>
@@ -633,217 +543,53 @@ export default function MarketCartPage() {
           </Alert>
         ) : null}
 
-        <section className="overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm">
-          <div className="grid gap-0 md:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-4 p-6 md:p-8">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">Catálogo público</Badge>
-                {catalogQuery.data?.tenantName ? (
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <Sparkles className="h-3.5 w-3.5" /> {catalogQuery.data.tenantName}
-                  </Badge>
-                ) : null}
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-2xl font-semibold leading-tight sm:text-3xl">
-                  {itemsCount > 0 ? `Tu carrito tiene ${itemsCount} ${itemsCount === 1 ? 'producto' : 'productos'}` : 'Tu carrito'}
-                </h2>
-                <p className="max-w-2xl text-base text-muted-foreground">
-                  {itemsCount > 0
-                    ? 'Revisá el resumen y finalizá cuando quieras. Te confirmamos el pedido por WhatsApp o por este canal.'
-                    : heroSubtitle || 'Elegí productos del catálogo y sumalos al carrito.'}
-                </p>
-              </div>
+      <CartSummary
+        items={cartItems}
+        totalAmount={cartQuery.data?.totalAmount}
+        totalPoints={cartQuery.data?.totalPoints}
+        onCheckout={handleCheckout}
+        isSubmitting={checkoutMutation.isPending}
+        onRemoveItem={(productId) => removeMutation.mutate(productId)}
+        onClearCart={() => clearMutation.mutate()}
+        isUpdating={isUpdatingCart}
+        customerProfile={cartCustomerProfile}
+        commercialState={cartCommercialState}
+        continuity={cartContinuity}
+        suggestedActions={cartSuggestedActions}
+        recommendations={cartRecommendations}
+        promotions={cartQuery.data?.promotions ?? null}
+        checkoutPreview={cartCheckoutPreview}
+        checkoutOptions={cartCheckoutOptions}
+        checkoutBlockedReason={checkoutBlockedReason}
+        rewardsProfile={rewardsQuery.data ?? null}
+        rewardsLoading={rewardsQuery.isLoading}
+        redeemingRewardId={redeemMutation.variables ?? null}
+        onRedeemReward={(rewardId) => redeemMutation.mutate(rewardId)}
+      />
 
-              <div className="flex flex-wrap gap-3">
-                {itemsCount > 0 ? (
-                  <Button size="lg" className="gap-2" onClick={handleCheckout} disabled={checkoutMutation.isPending || Boolean(checkoutBlockedReason)}>
-                    <ShoppingBag className="h-4 w-4" aria-hidden="true" /> Finalizar pedido
-                  </Button>
-                ) : null}
-                <Button size="lg" variant={itemsCount > 0 ? 'outline' : 'default'} className="gap-2" onClick={scrollToProducts}>
-                  <Sparkles className="h-4 w-4" aria-hidden="true" /> {itemsCount > 0 ? 'Seguir comprando' : 'Ver productos'}
-                </Button>
-              </div>
-            </div>
-            {heroImage ? (
-              <div className="relative hidden min-h-[260px] overflow-hidden bg-muted/50 md:block">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
-                <img
-                  src={heroImage}
-                  alt="Portada del catálogo"
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-            ) : null}
-          </div>
-        </section>
+      {cartServerError ? (
+        <Alert variant="destructive" className="mt-3">
+          <AlertTitle>No pudimos actualizar tu carrito</AlertTitle>
+          <AlertDescription>
+            {cartErrorMessage || 'Revisá tu conexión e intentá de nuevo.'}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-
-        {/* Omnichannel continuity is the store team's working context, not the buyer's. */}
-        {isBackofficeRole(typeof user?.rol === 'string' ? user.rol : null) && (cartCommercialState || cartCustomerProfile) ? (
-          <CommercialStateCard
-            customerProfile={cartCustomerProfile}
-            commercialState={cartCommercialState}
-          />
+      <div className="mt-3 text-xs text-muted-foreground">
+        <p>
+          Al confirmar, enviaremos el pedido al equipo del comercio. También podés revisar nuestras{' '}
+          <Link to="/legal/privacy" className="ml-1 underline">
+            políticas
+          </Link>
+          .
+        </p>
+      </div>
+        {!cartItems.length && !cartQuery.isLoading ? (
+          <Button asChild size="lg" variant="outline">
+            <Link to={buildTenantPath('/market', tenantSlug)}>Ver productos</Link>
+          </Button>
         ) : null}
-
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sectionsWithItems.map((section) => (
-            <div key={section.title} className="rounded-2xl border bg-card/90 p-4 text-card-foreground shadow-sm">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
-                <Tag className="h-4 w-4" />
-                {section.badge ?? 'Sección'}
-              </div>
-              <h3 className="mt-2 text-lg font-semibold leading-snug">{section.title}</h3>
-              {section.description ? (
-                <p className="mt-1 text-sm text-muted-foreground">{section.description}</p>
-              ) : null}
-
-              {section.items?.length ? (
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  {section.items.slice(0, 4).map((item) => (
-                    <div
-                      key={item.id}
-                      className="group overflow-hidden rounded-xl border bg-muted/30 p-2 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-                    >
-                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-background">
-                        {item.imageUrl ? (
-                          <img
-                            src={item.imageUrl}
-                            alt={item.name}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <ProductPlaceholder category={item.category} compact />
-                        )}
-                        {item.modality ? (
-                          <Badge className="absolute left-2 top-2 bg-background/90 text-xs font-semibold text-foreground" variant="secondary">
-                            {item.modality}
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="mt-2 line-clamp-1 text-sm font-semibold leading-tight">{item.name}</p>
-                      {buildSectionSubtitle(item) ? (
-                        <p className="line-clamp-2 text-xs text-muted-foreground">{buildSectionSubtitle(item)}</p>
-                      ) : null}
-                      <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-primary">
-                        {buildPriceLabel(item) || 'Consultar'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Productos</h2>
-              {catalogQuery.isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando catálogo...
-                </div>
-              ) : null}
-            </div>
-
-
-            {catalogServerError ? (
-              <Alert variant="destructive">
-                <AlertTitle>No pudimos cargar el catálogo</AlertTitle>
-                <AlertDescription>
-                  {catalogErrorMessage || 'Intentá nuevamente desde el enlace o QR.'}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            {categories.length > 1 ? (
-              <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
-                {categories.map((category) => (
-                  <Button
-                    key={category}
-                    variant={activeCategory === category ? 'default' : 'outline'}
-                    size="sm"
-                    className="rounded-full"
-                    onClick={() => setActiveCategory(category)}
-                  >
-                    {category === 'todos' ? 'Todas las secciones' : category}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-
-            {filteredProducts.length ? (
-              <div ref={productGridRef} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {filteredProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onAdd={(productId) => addMutation.mutate(productId)}
-                    isAdding={addMutation.isPending}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
-                {catalogQuery.isLoading
-                  ? 'Cargando productos...'
-                  : searchTerm
-                    ? 'No encontramos productos que coincidan con tu búsqueda.'
-                    : 'No hay productos en el marketplace de este municipio todavía'}
-              </div>
-            )}
-          </div>
-
-          <div className="lg:sticky lg:top-24">
-            <CartSummary
-              items={cartItems}
-              totalAmount={cartQuery.data?.totalAmount}
-              totalPoints={cartQuery.data?.totalPoints}
-              onCheckout={handleCheckout}
-              isSubmitting={checkoutMutation.isPending}
-              onRemoveItem={(productId) => removeMutation.mutate(productId)}
-              onClearCart={() => clearMutation.mutate()}
-              isUpdating={isUpdatingCart}
-              customerProfile={cartCustomerProfile}
-              commercialState={cartCommercialState}
-              continuity={cartContinuity}
-              suggestedActions={cartSuggestedActions}
-              recommendations={cartRecommendations}
-              promotions={cartQuery.data?.promotions ?? null}
-              checkoutPreview={cartCheckoutPreview}
-              checkoutOptions={cartCheckoutOptions}
-              checkoutBlockedReason={checkoutBlockedReason}
-              rewardsProfile={rewardsQuery.data ?? null}
-              rewardsLoading={rewardsQuery.isLoading}
-              redeemingRewardId={redeemMutation.variables ?? null}
-              onRedeemReward={(rewardId) => redeemMutation.mutate(rewardId)}
-            />
-
-            {cartServerError ? (
-              <Alert variant="destructive" className="mt-3">
-                <AlertTitle>No pudimos actualizar tu carrito</AlertTitle>
-                <AlertDescription>
-                  {cartErrorMessage || 'Revisá tu conexión e intentá de nuevo.'}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            <div className="mt-3 text-xs text-muted-foreground">
-              <p>
-                Al confirmar, enviaremos el pedido al equipo del comercio. También podés revisar nuestras{' '}
-                <Link to="/legal/privacy" className="ml-1 underline">
-                  políticas
-                </Link>
-                .
-              </p>
-            </div>
-          </div>
-        </section>
       </main>
 
       <CheckoutDialog
