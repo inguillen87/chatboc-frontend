@@ -193,7 +193,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     await waitFor(() => expect(assistedCommand).toHaveAttribute('open'));
     expect(assistedCommand).toHaveClass('order-2');
     expect(screen.getByText(/Nota manuscrita, foto, PDF o texto/i)).toBeInTheDocument();
-    expect(screen.getByText(/Subi una foto, lista, boleta o reclamo/i)).toBeInTheDocument();
+    expect(screen.getByText(/Subí una foto, lista, boleta o reclamo/i)).toBeInTheDocument();
     expect(emptyState).toHaveTextContent('Catalogo sin productos visibles, solicitud asistida activa');
     expect(emptyState).toHaveTextContent('Aunque todavia no haya productos publicados, el vecino puede subir documentos.');
     expect(emptyState.compareDocumentPosition(assistedCommand) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
