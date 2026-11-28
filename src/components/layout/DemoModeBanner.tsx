@@ -29,7 +29,7 @@ const DemoModeBanner = () => {
     <div className="w-full bg-amber-100 text-amber-900 border-b border-amber-200" role="status" aria-label="Modo de demostración">
       <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3 text-sm">
         <span>Estás en demo</span>
-        <Button size="sm" variant="outline" className="min-h-11" onClick={handleReset}>
+        <Button size="sm" variant="outline" className="min-h-11 border-amber-300 bg-white text-amber-900 hover:bg-amber-50 hover:text-amber-950" onClick={handleReset}>
           Salir de la demo
         </Button>
       </div>

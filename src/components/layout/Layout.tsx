@@ -119,7 +119,7 @@ const Layout = () => {
               : isLandingExperience
                 ? 'w-full flex-1 pt-20'
               : isTenantStorefrontPath(location.pathname)
-                ? 'flex-1 pt-16 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
+                ? 'flex-1 pt-[4.75rem] px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
               : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
         }
       >
