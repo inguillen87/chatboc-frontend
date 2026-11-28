@@ -1386,9 +1386,13 @@ export async function apiFetch<T>(
       try {
         const candidateResponse = await dispatch(candidateUrl, requestInit);
 
+        const candidateIsJson = (candidateResponse.headers.get("content-type") ?? "").toLowerCase().includes("application/json");
         const shouldRetryForStatus = (status: number) => {
           if (status === 404) {
-            return true;
+            // A JSON 404 is the backend answering «not found», not a missing
+            // proxy: retrying on another API origin drops the panel session and
+            // its 401 sends the person to the login screen.
+            return !candidateIsJson;
           }
 
           if (allowAuthFallback && (status === 401 || status === 403)) {
@@ -1404,6 +1408,7 @@ export async function apiFetch<T>(
 
         const isMissingProxy =
           candidateResponse.status === 404 &&
+          !candidateIsJson &&
           SAME_ORIGIN_PROXY_BASE &&
           cleanBase === SAME_ORIGIN_PROXY_BASE &&
           candidateBases.length > 1;
