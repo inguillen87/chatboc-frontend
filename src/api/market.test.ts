@@ -3,9 +3,13 @@ import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 import { subscribeMarketCartChanges } from '@/utils/marketStorage';
 
 const apiFetchMock = vi.fn();
+const probeResponse = vi.hoisted(() => ({ value: {} as unknown }));
 
 vi.mock('@/utils/api', () => ({
-  apiFetch: (...args: unknown[]) => apiFetchMock(...args),
+  // The cart's one-product contract probe answers "no contract" unless a test
+  // routes it; cart tests then keep exercising their own queued responses.
+  apiFetch: (...args: unknown[]) => (String(args[0]).includes('contract=marketplace&limit=1')
+    ? Promise.resolve(probeResponse.value) : apiFetchMock(...args)),
   ApiError: class ApiError extends Error {
     status: number;
     constructor(message: string, status = 500) {
@@ -896,3 +900,19 @@ describe('a newly learned catalog contract refreshes cart readers', () => {
     } finally { unsubscribe(); }
   });
 });
+
+describe('cart pages that never load the catalog', () => {
+  beforeEach(() => apiFetchMock.mockReset());
+  it('learn the guest-safe cart endpoint from a one-product probe', async () => {
+    probeResponse.value = { products: [], public_api: { cart: { summary: { endpoint: '/api/pwa/public/cart/summary?tenant=probe-store', guest_safe: true } } } };
+    try {
+      apiFetchMock.mockResolvedValue({ items: [{ id: '9', quantity: 2 }] });
+      const cart = await fetchMarketCart('probe-store');
+      expect(cart.items).toHaveLength(1);
+      expect(String(apiFetchMock.mock.calls[0][0])).toContain('/api/pwa/public/cart/summary');
+    } finally {
+      probeResponse.value = {};
+    }
+  });
+});
+
