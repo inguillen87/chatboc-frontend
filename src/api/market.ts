@@ -116,6 +116,24 @@ const rememberMarketPublicApiContract = (
   marketPublicApiContracts.set(key, contract);
 };
 
+const inflightMarketCatalogs = new Map<string, Promise<unknown>>();
+
+/**
+ * The cart's guest-safe endpoint is published with the catalog. A cart read or
+ * write that runs before any catalog load would otherwise fall back to the
+ * legacy endpoint, which keys a different cart, and show the buyer an empty
+ * one. When a catalog load for this store is in flight (the store pages start
+ * it alongside the cart), wait for it first; otherwise behave as before.
+ */
+const ensureMarketPublicApiContract = async (tenantSlug: string): Promise<void> => {
+  const key = normalizeTenantContractKey(tenantSlug);
+  if (!key || marketPublicApiContracts.has(key)) return;
+  const inflight = inflightMarketCatalogs.get(key);
+  if (inflight) await inflight.catch(() => undefined);
+  // Let the catalog's own continuation record the contract before resolving.
+  await Promise.resolve();
+};
+
 const resolveMarketCartEndpoint = (
   tenantSlug: string,
   action: 'summary' | 'add',
@@ -1179,6 +1197,7 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
 };
 
 export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
+  await ensureMarketPublicApiContract(tenantSlug);
   const endpoint = resolveMarketCartEndpoint(tenantSlug, 'summary') ?? `/api/${tenantSlug}/carrito`;
   const response = await apiFetch<MarketCartResponse>(endpoint, marketCartFetchOptions(endpoint, tenantSlug));
   return normalizeMarketCartResponse(response);
@@ -1207,7 +1226,7 @@ export async function fetchMarketCatalog(
   if (filters?.en_promocion === true) params.set('en_promocion', 'true');
   if (filters?.sort) params.set('sort', filters.sort);
 
-  const response = await apiFetch<MarketCatalogResponse>(
+  const request = apiFetch<MarketCatalogResponse>(
     `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog?${params.toString()}`,
     {
     tenantSlug,
@@ -1215,6 +1234,15 @@ export async function fetchMarketCatalog(
     omitChatSessionId: true,
     },
   );
+  const key = normalizeTenantContractKey(tenantSlug);
+  if (key) {
+    inflightMarketCatalogs.set(key, request);
+    void request.then(
+      () => { if (inflightMarketCatalogs.get(key) === request) inflightMarketCatalogs.delete(key); },
+      () => { if (inflightMarketCatalogs.get(key) === request) inflightMarketCatalogs.delete(key); },
+    );
+  }
+  const response = await request;
   const catalog = normalizeMarketCatalogResponse(response);
   rememberMarketPublicApiContract(tenantSlug, catalog.public_api);
   return catalog;
@@ -1261,6 +1289,7 @@ const normalizeAddToCartPayload = (payload: AddToCartPayload): AddToCartPayload 
 
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
   const sessionRevision = captureChatbocSessionRevision();
+  await ensureMarketPublicApiContract(tenantSlug);
   const endpoint = resolveMarketCartEndpoint(tenantSlug, 'add') ?? `/api/${tenantSlug}/carrito`;
   const response = await apiFetch<MarketCartResponse>(endpoint, {
     ...marketCartFetchOptions(endpoint, tenantSlug),

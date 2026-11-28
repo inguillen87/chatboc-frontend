@@ -864,3 +864,21 @@ describe('market api continuity normalization', () => {
     );
   });
 });
+
+describe('cart endpoint waits for the catalog contract in flight', () => {
+  beforeEach(() => apiFetchMock.mockReset());
+  it('reads the guest-safe cart when the catalog and cart load together', async () => {
+    let releaseCatalog!: (value: unknown) => void;
+    apiFetchMock.mockImplementation((path: unknown) => {
+      if (String(path).includes('/catalog?')) return new Promise(done => { releaseCatalog = done; });
+      return Promise.resolve({ items: [{ id: '1', quantity: 1 }] });
+    });
+    const catalog = fetchMarketCatalog('race-store');
+    const cart = fetchMarketCart('race-store');
+    releaseCatalog({ products: [], public_api: { cart: { summary: { endpoint: '/api/pwa/public/cart/summary?tenant=race-store', guest_safe: true } } } });
+    await catalog;
+    expect((await cart).items).toHaveLength(1);
+    const cartCall = apiFetchMock.mock.calls.find(([path]) => !String(path).includes('/catalog?'));
+    expect(String(cartCall?.[0])).toContain('/api/pwa/public/cart/summary');
+  });
+});
