@@ -25,6 +25,10 @@ import {
   type CheckoutStatus,
 } from './checkoutMachine';
 
+// A store without online payment still takes the order and agrees on payment.
+const canPlaceOrder = (v: { canStartCheckout: boolean; canOrderPayLater?: boolean }) =>
+  v.canStartCheckout || v.canOrderPayLater === true;
+
 const checkoutStateStorageKey = (tenantSlug: string) => `chatboc_market_checkout_state_${tenantSlug}`;
 
 const checkoutItemPayload = (item: MarketCartItem) => {
@@ -60,7 +64,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
   const latestCart = useRef({ signature: cartSignature, blocked: false });
   latestCart.current = {
     signature: cartSignature,
-    blocked: isLoading || Boolean(error) || !getMarketCommercialValidation(checkoutOptions, checkoutPreview, ...items).canStartCheckout,
+    blocked: isLoading || Boolean(error) || !canPlaceOrder(getMarketCommercialValidation(checkoutOptions, checkoutPreview, ...items)),
   };
   useEffect(() => {
     const session = { active: true, busy: false, submitted: false };
@@ -101,7 +105,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
       const contactReady = checkoutPreview?.contact_ready === true || Boolean(phone);
       if (requiresContactOrAuth && !contactReady) return fail('Necesitamos un teléfono para continuar con el checkout.');
       const currentValidation = getMarketCommercialValidation(checkoutOptions, checkoutPreview, ...items);
-      if (!currentValidation.canStartCheckout) return fail(currentValidation.reason);
+      if (!canPlaceOrder(currentValidation)) return fail(currentValidation.reason);
       const checkoutPayload = {
         items: items.map(checkoutItemPayload),
         customer: { name, ...(phone ? { phone } : {}) },
@@ -109,12 +113,12 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
       const preview = await previewPaymentCheckout(tenantSlug, checkoutPayload);
       if (!session.active) return;
       if (latestCart.current.signature !== submittedCart || latestCart.current.blocked) return fail();
-      if (preview?.payment_required && preview.payment_ready === false) {
+      const validation = getMarketCommercialValidation(preview, checkoutOptions, checkoutPreview, ...items);
+      if (preview?.payment_required && preview.payment_ready === false && !validation.canOrderPayLater) {
         const experience = preview.checkout_experience ?? preview.checkout_options?.checkout_experience;
         return fail(experience?.copy?.customer_pending_gateway ?? experience?.copy?.customer_locked ?? preview.next_step_label ?? preview.checkout_options?.gateway_hint ?? null);
       }
-      const validation = getMarketCommercialValidation(preview, checkoutOptions, checkoutPreview, ...items);
-      if (!validation.canStartCheckout) return fail(validation.reason);
+      if (!canPlaceOrder(validation)) return fail(validation.reason);
       // Synchronous gate covers the complete write attempt, including uncertainty.
       // It does not claim server-side idempotency or protect a different browser session.
       session.submitted = true;
@@ -158,7 +162,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
     () => getMarketCommercialValidation(checkoutOptions, checkoutPreview, ...items),
     [checkoutOptions, checkoutPreview, items],
   );
-  const checkoutBlockedReason = cartValidation.canStartCheckout ? null : cartValidation.reason;
+  const checkoutBlockedReason = canPlaceOrder(cartValidation) ? null : cartValidation.reason;
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">

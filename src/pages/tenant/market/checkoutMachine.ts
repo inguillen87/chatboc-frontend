@@ -155,6 +155,15 @@ export const resolveCheckoutOutcome = (response: CheckoutStartResponse) => {
     };
   }
 
+  if (response.pay_later === true && orderId) {
+    return {
+      status: 'success' as const,
+      paymentUrl: null,
+      orderId: String(orderId),
+      message: response.message ?? 'Recibimos tu pedido. El comercio te contacta para coordinar el pago y la entrega.',
+    };
+  }
+
   if (!orderId || ['pending','awaiting_payment','pendiente','pending_payment','pendiente_pago'].includes(normalizedStatus)) {
     return {
       status: 'awaiting_payment' as const,

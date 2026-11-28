@@ -347,6 +347,31 @@ describe('market api continuity normalization', () => {
     expect(checkout.integration_access?.enabled).toBe(false);
   });
 
+  it('treats a pending-payment order from a store without online payment as placed', async () => {
+    const unavailable = Object.assign(new ApiError('service unavailable', 503), {
+      body: {
+        pedido_id: 41,
+        market_order_id: 77,
+        estado: 'pendiente_pago',
+        mercadopago_ready: false,
+        error: 'MercadoPago no configurado para este tenant',
+      },
+    });
+    apiFetchMock.mockRejectedValueOnce(unavailable);
+
+    const checkout = await startMarketCheckout('tenant', { items: [{ id: '1', quantity: 1 }] });
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(checkout.pay_later).toBe(true);
+    expect(checkout.error).toBeNull();
+    expect(String(checkout.market_order_id ?? checkout.orderId ?? checkout.order_id)).toBe('77');
+  });
+
+  it('keeps a plain 503 as an error', async () => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('service unavailable', 503));
+    await expect(startMarketCheckout('tenant', { items: [{ id: '1', quantity: 1 }] })).rejects.toThrow('service unavailable');
+  });
+
   it('falls back from checkout-session to preference only when the v2 endpoint is unavailable', async () => {
     apiFetchMock
       .mockRejectedValueOnce(new ApiError('not found', 404))

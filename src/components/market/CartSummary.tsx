@@ -73,9 +73,14 @@ export default function CartSummary({
     () =>
       (rewardsProfile?.available_redemptions ?? []).filter((item) => {
         const rewardId = item.reward_id ?? item.id;
-        return rewardId !== null && rewardId !== undefined && (item.label || item.title || item.description);
+        if (rewardId === null || rewardId === undefined || item.disabled) return false;
+        if (!(item.label || item.title || item.description)) return false;
+        // Only offer rewards the buyer can actually take with the balance they have.
+        const cost = Number(item.cost_points ?? item.points ?? 0);
+        const balance = Number(rewardsProfile?.wallet?.balance ?? 0);
+        return !(cost > 0) || balance >= cost;
       }),
-    [rewardsProfile?.available_redemptions],
+    [rewardsProfile?.available_redemptions, rewardsProfile?.wallet?.balance],
   );
   const hasPromotionSavings =
     typeof promotions?.total_ahorrado === 'number' &&

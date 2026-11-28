@@ -101,4 +101,12 @@ describe('checkoutMachine', () => {
     expect(unsafe.status).toBe('awaiting_payment');
     expect(unsafe.paymentUrl).toBeNull();
   });
+
+  it('shows a placed order when the store agrees on payment later', () => {
+    expect(resolveCheckoutOutcome({ pay_later: true, market_order_id: 77, status: 'pending_payment', error: null })).toMatchObject({
+      status: 'success',
+      orderId: '77',
+      paymentUrl: null,
+    });
+  });
 });

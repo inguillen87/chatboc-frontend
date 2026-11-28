@@ -600,6 +600,8 @@ export interface CheckoutStartPayload {
 
 export interface CheckoutStartResponse {
   ok?: boolean | null;
+  /** Order placed; the store agrees on payment because online payment is not set up. */
+  pay_later?: boolean | null;
   error?: string | Record<string, unknown> | null;
   reason_code?: string | null;
   lock_reason_code?: string | null;

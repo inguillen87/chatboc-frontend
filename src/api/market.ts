@@ -694,6 +694,25 @@ const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse =
 const shouldFallbackEndpoint = (error: unknown) =>
   error instanceof ApiError && [404, 405, 501].includes(error.status);
 
+/**
+ * When a store has no online payment yet, the server still registers the order
+ * as "pending payment" and answers 503. That is a placed order, not a failure.
+ */
+const recoverPayLaterOrder = (error: unknown): CheckoutStartResponse | null => {
+  if (!(error instanceof ApiError) || error.status !== 503) return null;
+  const body = asRecordOrNull(error.body);
+  if (!body || !(body.market_order_id || body.pedido_id)) return null;
+  if (String(body.estado ?? '').toLowerCase() !== 'pendiente_pago') return null;
+  const { error: _ignored, ...rest } = body;
+  void _ignored;
+  return {
+    ...normalizeCheckoutStartResponse({ ...rest, status: 'pending_payment' }),
+    error: null,
+    pay_later: true,
+    message: 'Recibimos tu pedido. El comercio te contacta para coordinar el pago y la entrega.',
+  };
+};
+
 const shouldFallbackCheckoutEndpoint = (error: unknown) =>
   error instanceof ApiError && [401, 403, 404, 405, 501].includes(error.status);
 
@@ -1391,6 +1410,8 @@ export async function startMarketCheckout(tenantSlug: string, payload: CheckoutS
       const response = await apiFetch<unknown>(publicContractEndpoint, options);
       return normalizeCheckoutStartResponse(response);
     } catch (error) {
+      const payLater = recoverPayLaterOrder(error);
+      if (payLater) return payLater;
       if (!shouldFallbackCheckoutEndpoint(error)) {
         console.error("Error starting public checkout:", error);
         throw error;
@@ -1402,6 +1423,8 @@ export async function startMarketCheckout(tenantSlug: string, payload: CheckoutS
     const response = await apiFetch<unknown>('/api/v2/payments/checkout-session', options);
     return normalizeCheckoutStartResponse(response);
   } catch (error) {
+    const payLater = recoverPayLaterOrder(error);
+    if (payLater) return payLater;
     if (!shouldFallbackCheckoutEndpoint(error)) {
       console.error("Error starting checkout:", error);
       throw error;
