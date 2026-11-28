@@ -7,7 +7,7 @@ import { MarketProduct } from '@/types/market';
 import ProductPlaceholder from './ProductPlaceholder';
 import { displayMarketPrice } from '@/utils/currency';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
-import { ExternalLink, MessageCircle, Share2, ShoppingBag, Sparkles, Star } from 'lucide-react';
+import { Check, ExternalLink, MessageCircle, Share2, ShoppingBag, Sparkles, Star } from 'lucide-react';
 
 interface ProductCardProps {
   product: MarketProduct;
@@ -19,6 +19,9 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onAdd, onConsult, isAdding, detailHref }: ProductCardProps) {
+  const [justAdded, setJustAdded] = React.useState(false);
+  const addedTimer = React.useRef<number | undefined>(undefined);
+  React.useEffect(() => () => window.clearTimeout(addedTimer.current), []);
   const [shareNote, setShareNote] = React.useState<string | null>(null);
   // Share the store's own product page when the catalog has no share link:
   // the phone's share sheet when there is one, otherwise copy the link.
@@ -156,6 +159,9 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
               onClick={() => {
                 if (canAddToCart) {
                   onAdd(product.id);
+                  setJustAdded(true);
+                  window.clearTimeout(addedTimer.current);
+                  addedTimer.current = window.setTimeout(() => setJustAdded(false), 2000);
                   return;
                 }
                 onConsult?.(product, validation.reason);
@@ -163,8 +169,10 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
               disabled={isAdding || (!canAddToCart && !onConsult)}
               title={!canAddToCart && validation.reason ? validation.reason : undefined}
             >
-              {canAddToCart ? <ShoppingBag className="mr-2 h-4 w-4" /> : <MessageCircle className="mr-2 h-4 w-4" />}
-              {isAdding ? 'Agregando...' : canAddToCart ? 'Agregar' : 'Consultar'}
+              {justAdded && !isAdding ? <Check className="mr-2 h-4 w-4" /> : canAddToCart ? <ShoppingBag className="mr-2 h-4 w-4" /> : <MessageCircle className="mr-2 h-4 w-4" />}
+              <span aria-live="polite">
+                {isAdding ? 'Agregando…' : justAdded ? 'Agregado' : canAddToCart ? 'Agregar' : 'Consultar'}
+              </span>
             </Button>
           )}
           <Button
