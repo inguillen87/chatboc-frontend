@@ -30,5 +30,15 @@ export function displayMarketPrice(
   const bare = /^\d+(?:[.,]\d{1,2})?$/.test(text);
   if (text && !bare) return text;
   const amount = typeof price === 'number' && Number.isFinite(price) ? price : bare ? Number(text.replace(',', '.')) : NaN;
-  return Number.isFinite(amount) ? formatCurrency(amount, (currency || 'ARS').toUpperCase()) : null;
+  if (!Number.isFinite(amount)) return null;
+  const code = (currency || 'ARS').toUpperCase();
+  if (Number.isInteger(amount)) {
+    // Whole amounts read better without «,00».
+    try {
+      return new Intl.NumberFormat(LOCALE, { style: 'currency', currency: code, maximumFractionDigits: 0 }).format(amount);
+    } catch {
+      return formatCurrency(amount, code);
+    }
+  }
+  return formatCurrency(amount, code);
 }

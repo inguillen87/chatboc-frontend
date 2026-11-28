@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
+import { useTenantContextPresence } from '@/context/TenantContext';
 import type { MarketAssistedIntakeEntry, MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
@@ -289,6 +290,7 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
 };
 
 function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
+  const tenantContext = useTenantContextPresence();
   const [products, setProducts] = useState<MarketProduct[]>([]);
   const [promotions, setPromotions] = useState<MarketCatalogResponse['promotions']>(null);
   const [facets, setFacets] = useState<MarketCatalogResponse['facets']>(null);
@@ -655,6 +657,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // White label: the store is presented with its own name and logo, never the platform's.
+  const storeTenant = tenantContext?.tenant;
+  const storeMatches = Boolean(storeTenant && storeTenant.slug === tenantSlug);
+  const storeName = (storeMatches && storeTenant?.nombre?.trim()) || 'Tienda';
+  const storeLogo = storeMatches && typeof storeTenant?.logo_url === 'string' && /^https:\/\//.test(storeTenant.logo_url)
+    ? storeTenant.logo_url : null;
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 overflow-x-hidden px-4 py-4 sm:py-5">
       <header
@@ -662,11 +671,15 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         className="flex min-w-0 flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between"
       >
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <ShoppingBag className="h-5 w-5" />
-          </div>
+          {storeLogo ? (
+            <img src={storeLogo} alt="" className="h-10 w-10 shrink-0 rounded-lg border object-contain bg-background" />
+          ) : (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ShoppingBag className="h-5 w-5" />
+            </div>
+          )}
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold sm:text-2xl">Marketplace</h1>
+            <h1 className="text-xl font-semibold sm:text-2xl">{storeName}</h1>
             <p className="line-clamp-2 text-sm text-muted-foreground">
               {heroSubtitle ?? 'Buscá productos o enviá una nota, foto o texto para recibir una respuesta.'}
             </p>

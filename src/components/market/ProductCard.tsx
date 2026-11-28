@@ -56,7 +56,7 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding }: Pro
           <CardTitle className="line-clamp-2 text-lg font-semibold leading-snug">
             {product.name}
           </CardTitle>
-          {product.modality ? (
+          {product.modality && !['venta', 'compra', 'sale'].includes(product.modality.trim().toLowerCase()) ? (
             <Badge variant="outline" className="whitespace-nowrap text-xs uppercase">
               {product.modality}
             </Badge>
