@@ -6,12 +6,14 @@ import WhiteLabelShowcaseSection from "@/components/sections/WhiteLabelShowcaseS
 import ModulesBentoSection from "@/components/sections/ModulesBentoSection";
 import SaaSOperatingSystemSection from "@/components/sections/SaaSOperatingSystemSection";
 import SurveyKindsSection from "@/components/sections/SurveyKindsSection";
+import ParticipationStorySection from "@/components/sections/ParticipationStorySection";
 import SolutionSection from "@/components/sections/SolutionSection";
 import PricingSection from "@/components/sections/PricingSection";
 import DemoShowcaseSection from "@/components/sections/DemoShowcaseSection";
 import CtaSection from "@/components/sections/CtaSection";
 import { useLandingExperience } from "@/hooks/useLandingExperience";
 import { LANDING_TITLE } from "@/utils/pageTitles";
+import { useLandingSmoothScroll } from "@/hooks/useLandingSmoothScroll";
 
 const LegacyLandingAnchor = ({ id }: { id: string }) => (
   <span id={id} aria-hidden="true" className="block h-0 scroll-mt-24 overflow-hidden" />
@@ -20,6 +22,7 @@ const LegacyLandingAnchor = ({ id }: { id: string }) => (
 const Index = () => {
   const { experience: landingExperience } = useLandingExperience();
   const reduceMotion = useReducedMotion();
+  useLandingSmoothScroll(!reduceMotion);
   useEffect(() => {
     document.title = LANDING_TITLE;
 
@@ -46,6 +49,7 @@ const Index = () => {
         <LegacyLandingAnchor id="como-funciona" />
         <SaaSOperatingSystemSection />
         <SurveyKindsSection />
+        <ParticipationStorySection />
         <SolutionSection />
         <LegacyLandingAnchor id="publico-objetivo" />
         <LegacyLandingAnchor id="senales-valor" />
