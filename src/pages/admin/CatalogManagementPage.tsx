@@ -110,8 +110,17 @@ const getCatalogCategory = (product: any) =>
   firstDefined(toRecord(product), ['category', 'categoria']) || 'General';
 
 const formatCurrency = (product: any) => {
+  const record = toRecord(product);
+  // Redemptions are priced in points and donations have no price: say so.
+  const points = toFiniteMetric(record.precio_puntos ?? record.points_price ?? record.points);
+  const modality = String(record.modalidad ?? record.modality ?? '').trim().toLowerCase();
+  if (points !== null && points > 0) return `${points.toLocaleString('es-AR')} pts`;
+  if (modality === 'donacion' || modality === 'donación') return 'Donación';
   const price = getCatalogPrice(product);
-  if (price === null) return 'Sin precio informado';
+  if (price === null) {
+    const text = String(record.precio_texto ?? record.price_text ?? '').trim();
+    return text && !/^\d/.test(text) ? text : 'Sin precio informado';
+  }
 
   const requestedCurrency = String(product.currency || product.moneda || 'ARS').trim().toUpperCase();
   const currency = /^[A-Z]{3}$/.test(requestedCurrency) ? requestedCurrency : 'ARS';
