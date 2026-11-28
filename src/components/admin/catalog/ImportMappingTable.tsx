@@ -56,15 +56,20 @@ export const ImportMappingTable: React.FC<ImportMappingTableProps> = ({
   });
 
   return (
-    <div className="flex flex-col border rounded-md shadow-sm h-[500px] bg-white dark:bg-slate-950">
-      {/* Header with Mapping Controls */}
-      <div className="flex divide-x border-b bg-muted/30 overflow-hidden shrink-0">
+    <div
+      ref={parentRef}
+      data-testid="catalog-import-mapping-scroll"
+      className="relative h-[500px] overflow-auto rounded-md border bg-white shadow-sm dark:bg-slate-950"
+    >
+      <div style={{ width: `${48 + columns.length * 192}px`, minWidth: '100%' }}>
+      {/* Header with Mapping Controls: same scroll as the rows, so columns stay aligned. */}
+      <div className="sticky top-0 z-10 flex divide-x border-b bg-muted/95 backdrop-blur">
         {/* Sticky index column header */}
         <div className="w-12 p-3 font-medium text-xs text-muted-foreground flex items-center justify-center shrink-0 bg-muted/50">
           #
         </div>
 
-        <div className="flex-1 overflow-x-auto hide-scrollbar flex">
+        <div className="flex flex-1">
           {columns.map((col) => {
             const mappedField = mapping[col.key];
             const isIgnored = mappedField === 'ignore';
@@ -84,7 +89,7 @@ export const ImportMappingTable: React.FC<ImportMappingTableProps> = ({
                    </span>
                    {col.confidence && col.confidence < 0.7 && (
                      <span className="inline-flex h-4 items-center rounded-full border border-amber-200 px-1 text-[10px] font-medium text-amber-600">
-                       Low Conf.
+                       Revisar
                      </span>
                    )}
                 </div>
@@ -114,10 +119,7 @@ export const ImportMappingTable: React.FC<ImportMappingTableProps> = ({
       </div>
 
       {/* Virtualized Body */}
-      <div
-        ref={parentRef}
-        className="flex-1 overflow-auto"
-      >
+      <div>
         <div
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
@@ -184,6 +186,7 @@ export const ImportMappingTable: React.FC<ImportMappingTableProps> = ({
             <p>No hay datos para mostrar en la vista previa.</p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
