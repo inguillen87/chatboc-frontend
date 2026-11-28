@@ -37,12 +37,12 @@ describe('VoucherCheckPage', () => {
     expect(await screen.findByText(/Válido. Entregá/)).toBeTruthy();
     expect(screen.getByText('Kit escolar completo')).toBeTruthy();
     expect(apiFetch).toHaveBeenCalledWith('/api/admin/tenants/ciudad-demo/vouchers/redeem',
-      { method: 'POST', body: { code: 'K7MQ-4XPZ-2R' }, tenantSlug: 'ciudad-demo' });
+      { method: 'POST', body: { code: 'K7MQ-4XPZ-2R' }, tenantSlug: 'ciudad-demo', suppressPanel401Redirect: true });
   });
 
   it('warns when the code was already used, and when it is not valid', async () => {
     const used = new ApiError('conflict', 409, { result: 'used', voucher });
-    apiFetch.mockRejectedValueOnce(used).mockRejectedValueOnce(new ApiError('not found', 404, { result: 'invalid' }));
+    apiFetch.mockRejectedValueOnce(used).mockRejectedValueOnce(new ApiError('unprocessable', 422, { result: 'invalid' }));
     renderPage();
     fireEvent.change(screen.getByLabelText('Código del voucher'), { target: { value: 'K7MQ4XPZ2R' } });
     fireEvent.submit(screen.getByLabelText('Código del voucher').closest('form') as HTMLFormElement);
