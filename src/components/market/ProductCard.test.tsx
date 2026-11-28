@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { MemoryRouter } from 'react-router-dom';
 import ProductCard from './ProductCard';
 import type { MarketProduct } from '@/types/market';
 
@@ -83,5 +84,10 @@ describe('ProductCard', () => {
     expect(screen.getByText(/\$\s?1\.100/)).toBeInTheDocument();
     rerender(<ProductCard product={{ ...baseProduct, priceText: 'Desde $ 900 por kilo' }} onAdd={vi.fn()} />);
     expect(screen.getByText('Desde $ 900 por kilo')).toBeInTheDocument();
+  });
+
+  it('opens the product page from its name and photo', () => {
+    render(<MemoryRouter><ProductCard product={{ ...baseProduct, imageUrl: 'https://img.test/a.jpg' }} onAdd={vi.fn()} detailHref="/t/demo/product/prod-1" /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Caja de herramientas' })).toHaveAttribute('href', '/t/demo/product/prod-1');
   });
 });
