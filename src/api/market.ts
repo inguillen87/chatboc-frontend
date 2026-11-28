@@ -148,8 +148,8 @@ const ensureMarketPublicApiContract = async (tenantSlug: string): Promise<void> 
       `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog?contract=marketplace&limit=1`,
       { tenantSlug, suppressPanel401Redirect: true, omitChatSessionId: true },
     ).then((response) => {
-      const contract = normalizeMarketCatalogResponse(response).public_api;
-      if (contract && !marketPublicApiContracts.has(key)) marketPublicApiContracts.set(key, contract);
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      rememberMarketPublicApiContract(tenantSlug, normalizeMarketCatalogResponse(response).public_api);
     }).catch(() => undefined).finally(() => { inflightMarketContractProbes.delete(key); });
     inflightMarketContractProbes.set(key, probe);
   }
@@ -1179,6 +1179,8 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
           product_id: getFirst(raw, ['product_id', 'productId', 'catalogo_item_id', 'catalog_item_id']) as MarketCartItem['product_id'],
           line_id: lineId as MarketCartItem['line_id'],
           quantity,
+          // Carts from the guest endpoint send the unit price as precio_unitario.
+          price: asNumberOrNull(getFirst(raw, ['price', 'precio_unitario', 'unit_price', 'precio'])) ?? undefined,
         } as MarketCartItem;
       })
     : [];

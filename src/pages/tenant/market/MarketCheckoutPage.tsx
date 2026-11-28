@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/utils/currency';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import CommercialStateCard from '@/components/market/CommercialStateCard';
+import { useUser } from '@/hooks/useUser';
+import { isBackofficeRole } from '@/utils/roles';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
@@ -38,6 +40,7 @@ const checkoutItemPayload = (item: MarketCartItem) => {
 };
 
 function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
+  const { user } = useUser();
   const {
     items,
     totalAmount,
@@ -213,7 +216,8 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
         </Alert>
       ) : null}
 
-      {customerProfile || commercialState ? (
+      {/* Omnichannel continuity is the store team's working context, not the buyer's. */}
+      {isBackofficeRole(typeof user?.rol === 'string' ? user.rol : null) && (customerProfile || commercialState) ? (
         <CommercialStateCard customerProfile={customerProfile} commercialState={commercialState} />
       ) : null}
 
