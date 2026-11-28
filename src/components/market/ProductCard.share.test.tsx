@@ -26,3 +26,14 @@ describe('ProductCard share', () => {
     expect((screen.getByRole('button', { name: /Compartir/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+describe('ProductCard add feedback', () => {
+  it('confirms the add on the same button for a moment', async () => {
+    const onAdd = vi.fn();
+    render(<MemoryRouter><ProductCard product={product} onAdd={onAdd} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /Agregar/ }));
+    expect(onAdd).toHaveBeenCalledWith('168');
+    expect(screen.getByRole('button', { name: /Agregado/ })).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Agregar/ })).toBeTruthy(), { timeout: 3000 });
+  });
+});
