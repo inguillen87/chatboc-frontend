@@ -622,6 +622,12 @@ export interface LoyaltyReward {
 export interface PortalLoyaltySummary {
   points: number;
   level: string;
+  /** Participation levels, from the points earned (not the balance). */
+  levels?: string[];
+  level_index?: number;
+  next_level?: string | null;
+  points_to_next_level?: number;
+  level_progress?: number;
   surveysCompleted: number;
   suggestionsShared: number;
   claimsFiled: number;

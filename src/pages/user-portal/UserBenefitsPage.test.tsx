@@ -169,6 +169,19 @@ describe('UserBenefitsPage verified-session boundary', () => {
     expect(benefitsMocks.getLoyalty).toHaveBeenCalledTimes(2);
   });
 
+  it('shows the participation level and what is missing for the next one', async () => {
+    benefitsMocks.user = { id: 'verified-user', email: 'verified@example.test' };
+    benefitsMocks.authority = { clerkStatus: 'ready', hasBearerSession: false, hasVerifiedSession: true };
+    benefitsMocks.getLoyalty.mockResolvedValue({
+      ...verifiedSummary, points: 400, level: 'Vecino activo', next_level: 'Referente del barrio',
+      points_to_next_level: 1400, level_progress: 7,
+    });
+    render(<MemoryRouter><UserBenefitsPage /></MemoryRouter>);
+    expect(await screen.findByText('Vecino activo')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Progreso hacia Referente del barrio' })).toHaveAttribute('aria-valuenow', '7');
+    expect(screen.getByText(/Te faltan 1\.400 puntos para ser Referente del barrio/)).toBeInTheDocument();
+  });
+
   it('never exposes user A loyalty state while authority rotates to user B', async () => {
     const userBSummary = deferred<typeof verifiedSummary>();
     const userASummary = {
