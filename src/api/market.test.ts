@@ -882,3 +882,17 @@ describe('cart endpoint waits for the catalog contract in flight', () => {
     expect(String(cartCall?.[0])).toContain('/api/pwa/public/cart/summary');
   });
 });
+
+describe('a newly learned catalog contract refreshes cart readers', () => {
+  beforeEach(() => apiFetchMock.mockReset());
+  it('notifies once when a store contract is first recorded', async () => {
+    const changed = vi.fn(); const unsubscribe = subscribeMarketCartChanges(changed);
+    try {
+      apiFetchMock.mockResolvedValue({ products: [], public_api: { cart: { summary: { endpoint: '/api/pwa/public/cart/summary?tenant=notify-store', guest_safe: true } } } });
+      await fetchMarketCatalog('notify-store');
+      await fetchMarketCatalog('notify-store');
+      expect(changed).toHaveBeenCalledTimes(1);
+      expect(changed.mock.calls[0][0].tenantSlug).toBe('notify-store');
+    } finally { unsubscribe(); }
+  });
+});
