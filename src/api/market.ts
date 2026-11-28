@@ -1,6 +1,6 @@
 import { apiFetch, ApiError } from '@/utils/api';
 import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
-import { notifyMarketCartChanged } from '@/utils/marketStorage';
+import { notifyMarketCartChanged, subscribeMarketCartChanges } from '@/utils/marketStorage';
 import {
   MarketCartResponse,
   MarketCartItem,
@@ -1220,11 +1220,33 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
   };
 };
 
-export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
-  await ensureMarketPublicApiContract(tenantSlug);
-  const endpoint = resolveMarketCartEndpoint(tenantSlug, 'summary') ?? `/api/${tenantSlug}/carrito`;
-  const response = await apiFetch<MarketCartResponse>(endpoint, marketCartFetchOptions(endpoint, tenantSlug));
-  return normalizeMarketCartResponse(response);
+const inflightMarketCartReads = new Map<string, Promise<MarketCartResponse>>();
+// Any announced change (a write, a newly learned endpoint) makes later readers
+// ask the server again instead of joining a read that started before it.
+const retireInflightMarketCartReads = (tenantSlug: string) => {
+  const prefix = `${normalizeTenantContractKey(tenantSlug) ?? tenantSlug}|`;
+  for (const key of [...inflightMarketCartReads.keys()]) if (key.startsWith(prefix)) inflightMarketCartReads.delete(key);
+};
+
+/**
+ * Navbar, cart page, checkout and chat can all ask for the same cart at once
+ * while a store page settles. Concurrent reads for the same store and session
+ * share one request; a read that starts after it finishes asks again.
+ */
+export function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
+  const readKey = `${normalizeTenantContractKey(tenantSlug) ?? tenantSlug}|${captureChatbocSessionRevision()}`;
+  const shared = inflightMarketCartReads.get(readKey);
+  if (shared) return shared;
+  const read = (async () => {
+    await ensureMarketPublicApiContract(tenantSlug);
+    const endpoint = resolveMarketCartEndpoint(tenantSlug, 'summary') ?? `/api/${tenantSlug}/carrito`;
+    const response = await apiFetch<MarketCartResponse>(endpoint, marketCartFetchOptions(endpoint, tenantSlug));
+    return normalizeMarketCartResponse(response);
+  })();
+  inflightMarketCartReads.set(readKey, read);
+  const release = () => { if (inflightMarketCartReads.get(readKey) === read) inflightMarketCartReads.delete(readKey); };
+  read.then(release, release);
+  return read;
 }
 
 export async function fetchMarketCatalog(
@@ -1517,3 +1539,5 @@ export async function fetchPublicOrder(ticketNumber: string): Promise<PublicOrde
     skipAuth: true
   });
 }
+
+subscribeMarketCartChanges((change) => retireInflightMarketCartReads(change.tenantSlug));
