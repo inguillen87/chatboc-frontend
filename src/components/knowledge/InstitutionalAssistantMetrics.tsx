@@ -25,6 +25,7 @@ export function KnowledgeQuestionMetricsPanel({workspace,label}:{workspace:Knowl
   const resolution=data&&typeof data.resolution_rate==='number'?Math.round(data.resolution_rate*100):null;
   const detail=data&&data.ui.resolution_detail&&typeof data.interpreted==='number'
     ?data.ui.resolution_detail.replace('{answered}',()=>String(data.totals.answered)).replace('{interpreted}',()=>String(data.interpreted)):null;
+  const feedback=data?.feedback??null;
   const table=(title:string,rows:QuestionNodeCount[],copy:KnowledgeQuestionMetrics['ui'])=>rows.length?<section aria-label={title}>
     <h4>{title}</h4>
     <table><thead><tr><th scope="col">{copy.node}</th><th scope="col">{copy.count}</th></tr></thead>
@@ -53,6 +54,17 @@ export function KnowledgeQuestionMetricsPanel({workspace,label}:{workspace:Knowl
           {table(data.ui.uncovered_by_node,data.uncovered_by_node,data.ui)}
           {table(data.ui.answered_by_node,data.answered_by_node,data.ui)}
         </>}
+        {feedback?<section className="institutional-assistant__metrics-feedback" aria-labelledby={`${panelId}-feedback`}>
+          <h3 id={`${panelId}-feedback`}>{data.ui.feedback_title}</h3><p>{data.ui.feedback_description}</p>
+          {feedback.helpful+feedback.unhelpful===0?<p>{data.ui.feedback_empty}</p>:<>
+            <dl className="institutional-assistant__metrics-totals">
+              <div><dt>{data.ui.feedback_helpful}</dt><dd>{feedback.helpful}</dd></div>
+              <div><dt>{data.ui.feedback_unhelpful}</dt><dd>{feedback.unhelpful}</dd></div>
+              {feedback.helpful_rate!==null?<div><dt>{data.ui.feedback_rate}</dt><dd>{Math.round(feedback.helpful_rate*100)} %</dd></div>:null}
+            </dl>
+            {table(data.ui.feedback_by_node??'',feedback.unhelpful_by_node,data.ui)}
+          </>}
+        </section>:null}
         {data.truncated?<p className="institutional-assistant__metrics-note">{data.ui.truncated}</p>:null}
         <p className="institutional-assistant__metrics-note">{data.ui.privacy}</p>
       </>:null}

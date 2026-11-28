@@ -12,8 +12,12 @@ export interface KnowledgeQuestionMetrics {
   /** Share of interpreted questions answered from the sources. Absent on servers that predate it. */
   resolution_rate?:number|null;interpreted?:number;
   uncovered_by_node:QuestionNodeCount[];answered_by_node:QuestionNodeCount[];
-  ui:Record<(typeof UI_KEYS)[number],string>&{resolution_rate?:string;resolution_detail?:string};
+  /** «¿Te sirvió?» marks. Absent on servers that predate it, and dropped when malformed. */
+  feedback?:{helpful:number;unhelpful:number;helpful_rate:number|null;unhelpful_by_node:QuestionNodeCount[]};
+  ui:Record<(typeof UI_KEYS)[number],string>&{resolution_rate?:string;resolution_detail?:string}&
+    Partial<Record<(typeof FEEDBACK_UI_KEYS)[number],string>>;
 }
+const FEEDBACK_UI_KEYS=['feedback_title','feedback_description','feedback_helpful','feedback_unhelpful','feedback_rate','feedback_by_node','feedback_empty'] as const;
 const record=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
 const count=(value:unknown):value is number=>Number.isSafeInteger(value)&&(value as number)>=0;
 const text=(value:unknown,max:number):value is string=>typeof value==='string'&&value.trim().length>0&&value.length<=max;
@@ -32,7 +36,12 @@ export function parseQuestionMetrics(value:unknown,workspace:KnowledgeWorkspace)
     !ranking(value.uncovered_by_node)||!ranking(value.answered_by_node)||
     !record(value.ui)||!UI_KEYS.every(key=>text((value.ui as Record<string,unknown>)[key],200))||
     !(['resolution_rate','resolution_detail'] as const).every(key=>{const label=(value.ui as Record<string,unknown>)[key];return label===undefined||text(label,200);}))throw new Error('knowledge_metrics_invalid');
-  return value as unknown as KnowledgeQuestionMetrics;
+  const feedback=value.feedback,labels=value.ui as Record<string,unknown>;
+  const usable=record(feedback)&&count(feedback.helpful)&&count(feedback.unhelpful)&&ranking(feedback.unhelpful_by_node)&&
+    (feedback.helpful_rate===null||(typeof feedback.helpful_rate==='number'&&feedback.helpful_rate>=0&&feedback.helpful_rate<=1))&&
+    FEEDBACK_UI_KEYS.every(key=>text(labels[key],200));
+  // The panel of written questions must keep working whatever happens to this optional block.
+  return (usable?value:{...value,feedback:undefined}) as unknown as KnowledgeQuestionMetrics;
 }
 
 /** Read-only request made when an administrator opens the panel. */
