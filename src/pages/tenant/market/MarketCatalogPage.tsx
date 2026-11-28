@@ -911,12 +911,8 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                     onAdd={(id) => addItem(id)}
                     onConsult={activateProductConsult}
                     isAdding={isCartLoading}
+                    detailHref={buildTenantPath(`/product/${encodeURIComponent(product.id)}`, tenantSlug)}
                   />
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={buildTenantPath(`/product/${encodeURIComponent(product.id)}`, tenantSlug)}>
-                      Ver detalle
-                    </Link>
-                  </Button>
                 </article>
               );
             })

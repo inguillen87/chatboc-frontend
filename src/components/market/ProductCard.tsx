@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,12 +11,14 @@ import { ExternalLink, MessageCircle, Share2, ShoppingBag, Sparkles, Star } from
 
 interface ProductCardProps {
   product: MarketProduct;
+  /** Where the photo and the name lead: the product page. */
+  detailHref?: string;
   onAdd: (productId: string) => void;
   onConsult?: (product: MarketProduct, reason?: string | null) => void;
   isAdding?: boolean;
 }
 
-export default function ProductCard({ product, onAdd, onConsult, isAdding }: ProductCardProps) {
+export default function ProductCard({ product, onAdd, onConsult, isAdding, detailHref }: ProductCardProps) {
   const currency = (product.currency ?? 'ARS').toUpperCase();
   const displayPrice = displayMarketPrice(product.priceText, product.price, currency) ?? '';
   const hasRating = typeof product.rating === 'number' && typeof product.ratingCount === 'number';
@@ -26,6 +29,7 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding }: Pro
     <Card className="flex h-full flex-col overflow-hidden shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
       {product.imageUrl ? (
         <div className="group relative aspect-[4/3] w-full overflow-hidden bg-muted">
+          {detailHref ? <Link to={detailHref} tabIndex={-1} aria-hidden="true" className="absolute inset-0 z-[1]" /> : null}
           <img
             src={product.imageUrl}
             alt={product.imageAlt || product.name}
@@ -52,7 +56,11 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding }: Pro
       <CardHeader className="space-y-2 pb-2">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="line-clamp-2 text-lg font-semibold leading-snug">
-            {product.name}
+            {detailHref ? (
+              <Link to={detailHref} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
+                {product.name}
+              </Link>
+            ) : product.name}
           </CardTitle>
           {product.modality && !['venta', 'compra', 'sale'].includes(product.modality.trim().toLowerCase()) ? (
             <Badge variant="outline" className="whitespace-nowrap text-xs uppercase">

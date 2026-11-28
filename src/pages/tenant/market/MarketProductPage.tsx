@@ -130,30 +130,30 @@ const normalizeStockStatus = (product: MarketProduct) => {
   if (product.available_to_sell === false || product.disponible === false) {
     return {
       label: 'No disponible',
-      detail: 'El operador debe revisar este producto antes de venderlo.',
+      detail: 'Por ahora no está a la venta. Podés consultarnos por WhatsApp.',
       tone: 'danger',
     };
   }
   if (normalized === 'out_of_stock') {
     return {
       label: 'Sin stock',
-      detail: 'No se puede confirmar la compra hasta reponer stock.',
+      detail: 'Volvé pronto o consultanos cuándo llega.',
       tone: 'danger',
     };
   }
   if (normalized === 'stock_unknown') {
     return {
       label: 'Stock a confirmar',
-      detail: 'El equipo valida disponibilidad antes de cerrar el pedido.',
+      detail: 'Te confirmamos la disponibilidad antes de cerrar el pedido.',
       tone: 'warning',
     };
   }
   if (normalized === 'validated') {
     return {
-      label: 'Stock validado',
+      label: 'Disponible',
       detail: product.stock_quantity
         ? `${product.stock_quantity} ${product.unit ?? 'u'} disponibles`
-        : 'Disponibilidad confirmada por el catálogo.',
+        : 'Disponible para comprar.',
       tone: 'success',
     };
   }
@@ -165,8 +165,8 @@ const normalizeStockStatus = (product: MarketProduct) => {
     };
   }
   return {
-    label: 'Operación asistida',
-    detail: 'El equipo puede confirmar disponibilidad por WhatsApp o desde el CRM.',
+    label: 'A confirmar',
+    detail: 'Te confirmamos la disponibilidad por WhatsApp.',
     tone: 'neutral',
   };
 };
@@ -221,7 +221,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
         setProduct(normalizeProductDetail(response, productSlug));
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'No se pudo cargar el producto.');
+        setError('No pudimos cargar el producto. Volvé a intentarlo en unos segundos.');
       })
       .finally(() => setIsLoading(false));
   }, [productSlug, tenantSlug]);
@@ -261,7 +261,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
   }
 
   if (isLoading || !product) {
-    return <p className="mx-auto mt-8 max-w-3xl text-sm text-muted-foreground">Cargando producto...</p>;
+    return <p className="mx-auto mt-8 max-w-3xl text-sm text-muted-foreground">Cargando producto…</p>;
   }
 
   return (
@@ -270,7 +270,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
         <Button asChild variant="outline" size="sm">
           <Link to={buildTenantPath('/market', tenantSlug)}>
             <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-            Volver al catalogo
+            Volver al catálogo
           </Link>
         </Button>
       </div>
@@ -319,7 +319,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                   {displayMarketPrice(product.priceText, product.price, product.currency ?? 'ARS') ?? 'A cotizar'}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {product.amount_validated === true ? 'Validado por backend' : 'Puede requerir confirmacion'}
+                  {product.amount_validated === true ? 'Precio confirmado' : 'Precio a confirmar'}
                 </p>
               </div>
               <div className="rounded-md border bg-background p-4" data-testid="market-product-stock-signal">
@@ -333,10 +333,10 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
               <div className="rounded-md border bg-background p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   <BadgePercent className="h-4 w-4" aria-hidden="true" />
-                  Promos
+                  Promociones
                 </div>
-                <div className="mt-2 text-base font-semibold">{product.promoInfo ?? 'Sin promo activa'}</div>
-                <p className="mt-1 text-xs text-muted-foreground">Visible en WhatsApp, webview y CRM.</p>
+                <div className="mt-2 text-base font-semibold">{product.promoInfo ?? 'Sin promociones por ahora'}</div>
+                <p className="mt-1 text-xs text-muted-foreground">Valen en la tienda y por WhatsApp.</p>
               </div>
             </div>
 
@@ -365,7 +365,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
               <div>
                 <CardTitle className="text-xl">Comprar o consultar</CardTitle>
                 <p className="mt-1 text-sm text-slate-300">
-                  Continuidad por carrito, WhatsApp y CRM para no perder el pedido.
+                  Agregalo al carrito o consultanos por WhatsApp.
                 </p>
               </div>
             </CardHeader>
@@ -409,7 +409,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-slate-400">
-                  {maxQuantity < 99 ? `Maximo publicado: ${maxQuantity} ${product.unit ?? 'u'}` : 'El operador confirma volumen si hace falta.'}
+                  {maxQuantity < 99 ? `Hasta ${maxQuantity} ${product.unit ?? 'u'} por pedido` : 'Si necesitás más cantidad, te la confirmamos.'}
                 </p>
               </div>
 
@@ -419,12 +419,12 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                   data-testid="market-product-validation-reason"
                 >
                   <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                  <AlertTitle>Compra asistida</AlertTitle>
+                  <AlertTitle>Te ayudamos con esta compra</AlertTitle>
                   <AlertDescription className="text-amber-50/90">{productValidation.reason}</AlertDescription>
                 </Alert>
               ) : (
                 <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-50">
-                  Producto listo para agregar al carrito y continuar por checkout o WhatsApp.
+                  Listo para comprar. Agregalo al carrito o consultanos por WhatsApp.
                 </div>
               )}
 
@@ -441,7 +441,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                 disabled={!canAddToCart || isCartLoading}
               >
                 <ShoppingCart className="mr-2 h-4 w-4" aria-hidden="true" />
-                {isCartLoading ? 'Agregando...' : canAddToCart ? 'Agregar al carrito' : 'Compra a validar'}
+                {isCartLoading ? 'Agregando...' : canAddToCart ? 'Agregar al carrito' : 'No se puede comprar por ahora'}
               </Button>
 
               <Button asChild variant="secondary" className="w-full" data-testid="market-product-cart-link">
@@ -487,7 +487,7 @@ export default function MarketProductPage() {
       <div className="mx-auto max-w-3xl px-4 py-8">
         <Alert variant="destructive">
           <AlertTitle>Faltan datos</AlertTitle>
-          <AlertDescription>Necesitamos el tenant y el producto para continuar.</AlertDescription>
+          <AlertDescription>No encontramos este producto. Volvé al catálogo para seguir comprando.</AlertDescription>
         </Alert>
       </div>
     );

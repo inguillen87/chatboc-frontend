@@ -79,13 +79,13 @@ describe('MarketProductPage conversational webview', () => {
     );
     expect(screen.getByTestId('market-product-commerce-panel')).toBeInTheDocument();
     expect(screen.getByTestId('market-product-validation-reason')).toHaveTextContent('Sin stock confirmado.');
-    expect(screen.getByRole('button', { name: /Compra a validar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /No se puede comprar por ahora/i })).toBeDisabled();
     expect(screen.getByTestId('market-product-whatsapp')).toHaveAttribute(
       'href',
       'https://wa.me/5492631000000?text=Malbec',
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Compra a validar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /No se puede comprar por ahora/i }));
 
     expect(addMarketItemMock).not.toHaveBeenCalled();
   });
@@ -115,7 +115,7 @@ describe('MarketProductPage conversational webview', () => {
       'src',
       'https://cdn.example.com/malbec.jpg',
     );
-    expect(screen.getByTestId('market-product-stock-signal')).toHaveTextContent('Stock validado');
+    expect(screen.getByTestId('market-product-stock-signal')).toHaveTextContent('Disponible');
     expect(screen.getByText('2 Malbec + degustacion')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Sumar cantidad/i }));
