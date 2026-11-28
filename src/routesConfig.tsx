@@ -66,6 +66,8 @@ const GestionPlantillasPage = React.lazy(() => import('@/pages/GestionPlantillas
 const CatalogMappingPage = React.lazy(() => import('@/pages/admin/CatalogMappingPage'));
 const CategoryManagementPage = React.lazy(() => import('@/pages/admin/CategoryManagementPage'));
 const CatalogManagementPage = React.lazy(() => import('@/pages/admin/CatalogManagementPage'));
+const VoucherCheckPage = React.lazy(() => import('@/pages/admin/VoucherCheckPage'));
+const VoucherPage = React.lazy(() => import('@/pages/VoucherPage'));
 const OpinarArPage = React.lazy(() => import('@/pages/OpinarArPage'));
 const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
 const AnalyticsPage = React.lazy(() => import('@/pages/analytics/AnalyticsPage'));
@@ -456,6 +458,10 @@ const routes: RouteConfig[] = [
     roles: ['tenant_admin', 'superadmin', 'empleado'],
     requiredAllCapabilities: ['market.catalog.write'],
   }),
+  ...withTenantPrefixes('/:tenant/admin/vouchers', { tenantHost: 'private',
+    element: <VoucherCheckPage />,
+    roles: ['tenant_admin', 'superadmin', 'empleado'],
+  }),
 
 
   // --- EDUCATION FOUNDATION ROUTES ---
@@ -552,6 +558,7 @@ const routes: RouteConfig[] = [
   { path: '/user/register', tenantHost: 'public', element: <UserRegister /> },
   ...withTenantPrefixes('/:tenant/user/register', { tenantHost: 'public', element: <UserRegister /> }),
   { path: '/cuenta', tenantHost: 'public', element: <UserAccount /> },
+  { path: '/v/:code', tenantHost: 'public', element: <VoucherPage />, allowGuest: true },
   { path: '/demo', element: <Demo /> },
   { path: '/contacto', element: <Navigate to="/demo?intent=ventas" replace /> },
   { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },
