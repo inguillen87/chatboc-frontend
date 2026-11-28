@@ -1,3 +1,4 @@
+import ProductPlaceholder from '@/components/market/ProductPlaceholder';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -725,9 +726,7 @@ export default function MarketCartPage() {
                             loading="lazy"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                            <ShoppingBag className="h-5 w-5" />
-                          </div>
+                          <ProductPlaceholder category={item.category} compact />
                         )}
                         {item.modality ? (
                           <Badge className="absolute left-2 top-2 bg-background/90 text-xs font-semibold text-foreground" variant="secondary">
