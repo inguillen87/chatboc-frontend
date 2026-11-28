@@ -207,7 +207,7 @@ describe('tracking background refresh interaction continuity', () => {
     await act(async () => { pending.resolve(updatedPayload()); });
     expect(screen.queryByText('Actualización confirmada')).not.toBeInTheDocument();
     expect(screen.queryByText('Estado actual')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Actualizar estado' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ })).toBeEnabled();
     expect(api.read).toHaveBeenCalledTimes(2);
   });
 
@@ -233,7 +233,7 @@ describe('tracking background refresh interaction continuity', () => {
     const pending = deferred<ReturnType<typeof payload>>();
     api.read.mockResolvedValueOnce(payload()).mockReturnValueOnce(pending.promise);
     const { composer, map } = await renderPage();
-    fireEvent.click(screen.getByRole('button', { name: 'Actualizar estado' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ }));
     await waitFor(() => expect(api.read).toHaveBeenCalledTimes(2));
     expect(composer).not.toBeInTheDocument();
     expect(map.remove).toHaveBeenCalledOnce();

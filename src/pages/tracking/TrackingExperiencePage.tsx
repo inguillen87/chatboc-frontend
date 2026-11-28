@@ -1118,7 +1118,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                 ) : null}
                 <Button type="submit" disabled={loading || refreshing || !code} className="h-10 font-semibold">
                   {loading || refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                  Actualizar estado
+                  {payload ? "Actualizar estado" : "Ver estado"}
                 </Button>
               </div>
 

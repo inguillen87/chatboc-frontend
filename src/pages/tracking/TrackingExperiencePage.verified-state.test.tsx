@@ -82,11 +82,11 @@ describe('TrackingExperiencePage verified data boundary', () => {
     renderPage('/tracking/claim/M-fixture-denied');
     const field = screen.getByLabelText('PIN del reclamo');
     fireEvent.change(field, { target: { value: fixturePin() } });
-    fireEvent.click(screen.getByRole('button', { name: 'Actualizar estado' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ }));
     await waitFor(() => expect(screen.getByRole('alert')).toBeVisible());
     expectNoVerifiedRecord();
     expect((field as HTMLInputElement).value === fixturePin()).toBe(true);
-    expect(screen.getByRole('button', { name: 'Actualizar estado' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ })).toBeEnabled();
   });
 
   it('rejects an empty HTTP-200 payload instead of treating it as received', async () => {
@@ -185,7 +185,7 @@ describe('TrackingExperiencePage verified data boundary', () => {
     await act(async () => pending.resolve(payload('M-fixture-pin-edited')));
     expectNoVerifiedRecord();
     expect(api.load).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Actualizar estado' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ })).toBeEnabled();
   });
 
   it('retires a verified record immediately when the PIN draft changes and waits for an explicit retry', async () => {
@@ -203,7 +203,7 @@ describe('TrackingExperiencePage verified data boundary', () => {
     api.load.mockReturnValueOnce(new Promise(() => {}));
     renderPage('/tracking/claim/M-fixture-duplicate');
     fireEvent.change(screen.getByLabelText('PIN del reclamo'), { target: { value: fixturePin() } });
-    const form = screen.getByRole('button', { name: 'Actualizar estado' }).closest('form')!;
+    const form = screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ }).closest('form')!;
     fireEvent.submit(form); fireEvent.submit(form);
     await waitFor(() => expect(api.load).toHaveBeenCalledTimes(1));
     expectNoVerifiedRecord();
@@ -230,7 +230,7 @@ describe('TrackingExperiencePage verified data boundary', () => {
     const alert = await screen.findByRole('alert');
     await waitFor(() => expect(alert).toHaveFocus());
     expectNoVerifiedRecord();
-    screen.getByRole('button', { name: 'Actualizar estado' }).focus();
+    screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ }).focus();
     await user.keyboard('{Enter}');
     expect(await screen.findByText('Estado actual')).toBeVisible();
     expect(api.load).toHaveBeenCalledTimes(2);
@@ -260,7 +260,7 @@ describe('TrackingExperiencePage verified data boundary', () => {
     api.load.mockResolvedValueOnce(payload('M-fixture-refresh', 'Respuesta anterior verificada')).mockReturnValueOnce(pending.promise);
     renderPage(destination('M-fixture-refresh'));
     expect(await screen.findByText('Estado actual')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Actualizar estado' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Ver|Actualizar) estado$/ }));
     await waitFor(() => expect(api.load).toHaveBeenCalledTimes(2));
     expectNoVerifiedRecord();
     await act(async () => pending.reject(Object.assign(new Error('Reclamo no encontrado'), { status: 404 })));
