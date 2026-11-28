@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { MarketCartItem, MarketCartPromotions, MarketCheckoutOptions, MarketCheckoutPreview, MarketCommercialState, MarketContinuity, MarketCustomerProfile, MarketRecommendation, MarketRewardsProfile, MarketSuggestedAction } from '@/types/market';
-import { formatCurrency } from '@/utils/currency';
+import { displayMarketPrice, formatCurrency } from '@/utils/currency';
 import { ArrowRightLeft, Gift, MessageCircle, Phone, ShoppingCart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -100,7 +100,8 @@ export default function CartSummary({
     typeof promotions?.total_con_descuento === 'number';
 
   const formatItemPrice = (item: MarketCartItem) => {
-    if (item.priceText) return item.priceText;
+    if (item.priceText && !/^\s*\d+(?:[.,]\d{1,2})?\s*$/.test(item.priceText)) return item.priceText;
+    if (item.priceText && typeof item.price !== 'number') return displayMarketPrice(item.priceText, null, item.currency ?? currency) ?? item.priceText;
     if (typeof item.price === 'number') {
       const amount = item.price * item.quantity;
       return formatCurrency(amount, item.currency ?? currency);

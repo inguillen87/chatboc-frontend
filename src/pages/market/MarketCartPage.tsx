@@ -28,7 +28,7 @@ import { useUser } from '@/hooks/useUser';
 import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { formatCurrency } from '@/utils/currency';
+import { displayMarketPrice, formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { hasPersistedClerkSession } from '@/utils/sessionLogout';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -442,7 +442,7 @@ export default function MarketCartPage() {
 
   const buildPriceLabel = (product: MarketProduct): string => {
     if (product.points) return `${product.points} pts`;
-    return product.priceText ?? formatPriceValue(product.price, product.currency ?? 'ARS') ?? 'Consultar';
+    return displayMarketPrice(product.priceText, product.price, product.currency ?? 'ARS') ?? 'Consultar';
   };
 
   const buildSectionSubtitle = (product: MarketProduct): string | null =>

@@ -16,3 +16,19 @@ export function formatCurrency(value: number | string, currency = 'ARS'): string
     return `$${num}`;
   }
 }
+
+/**
+ * The price a shopper reads. A written price («Desde $ 900 por kilo») is kept as
+ * written; a bare imported number («2900») gets its currency and separators.
+ */
+export function displayMarketPrice(
+  priceText: string | null | undefined,
+  price: number | null | undefined,
+  currency = 'ARS',
+): string | null {
+  const text = typeof priceText === 'string' ? priceText.trim() : '';
+  const bare = /^\d+(?:[.,]\d{1,2})?$/.test(text);
+  if (text && !bare) return text;
+  const amount = typeof price === 'number' && Number.isFinite(price) ? price : bare ? Number(text.replace(',', '.')) : NaN;
+  return Number.isFinite(amount) ? formatCurrency(amount, (currency || 'ARS').toUpperCase()) : null;
+}
