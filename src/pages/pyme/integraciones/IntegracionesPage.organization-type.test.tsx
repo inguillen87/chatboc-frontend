@@ -114,7 +114,7 @@ describe('integration presentation follows the selected organization type', () =
     // The saved dispatch configuration arrives after the section renders.
     expect(await screen.findByDisplayValue('warehouse@example.test')).toBeVisible();
     expect(await screen.findByDisplayValue('synthetic-dispatch')).toBeVisible();
-    expect(screen.getByText('0/6', { exact: true })).toBeVisible();
+    expect(screen.getByText('0/7', { exact: true })).toBeVisible();
   });
 
   it.each(['mercadolibre', 'tiendanube', 'mercadopago'])('keeps a government deep link to %s on an institutional channel', async channel => {

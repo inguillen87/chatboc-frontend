@@ -50,6 +50,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import IntegrationPreviewDialog from './IntegrationPreviewDialog';
+import MarketplaceConnectionPanel, { UpcomingMarketplaces, useMarketplaceStatus, type MarketplaceKey } from '@/components/integrations/MarketplaceConnectionPanel';
 import { cn } from '@/lib/utils';
 import { useTenantNotificationSettings } from './useTenantNotificationSettings';
 import {
@@ -74,6 +75,11 @@ const CHANNEL_GUIDANCE: Record<string, { title: string; detail: string; outcome:
     detail: "Sincroniza catálogo, consultas y pedidos para responder desde un solo lugar.",
     outcome: "Ventas y stock con seguimiento centralizado.",
   },
+  shopify: {
+    title: "Shopify",
+    detail: "Trae productos, precios, stock y fotos de tu tienda Shopify al catálogo.",
+    outcome: "Catálogo al día para vender por WhatsApp y la web.",
+  },
   tiendanube: {
     title: "Tiendanube",
     detail: "Conecta ecommerce, carrito y catálogo para cerrar pedidos con contexto.",
@@ -94,6 +100,7 @@ const CHANNEL_GUIDANCE: Record<string, { title: string; detail: string; outcome:
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
   tiendanube: "https://d26lpennugtm8s.cloudfront.net/assets/common/img/logos/header/logo_tiendanube_header.svg",
+  shopify: "https://upload.wikimedia.org/wikipedia/commons/0/0e/Shopify_logo_2018.svg",
   whatsapp: "https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg",
   mercadopago: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/6.6.92/mercadopago/logo__large.png",
   telegram: "https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg",
@@ -105,10 +112,12 @@ const CHANNELS = [
     { id: 'telegram', label: 'Telegram', icon: Send },
     { id: 'mercadolibre', label: 'MercadoLibre', icon: ShoppingBag },
     { id: 'tiendanube', label: 'Tiendanube', icon: ShoppingBag },
+    { id: 'shopify', label: 'Shopify', icon: ShoppingBag },
     { id: 'mercadopago', label: 'Cobros', icon: KeyRound },
     { id: 'email', label: 'Email', icon: Mail },
 ];
-const COMMERCE_CHANNEL_IDS = new Set(['mercadolibre', 'tiendanube', 'mercadopago']);
+const COMMERCE_CHANNEL_IDS = new Set(['mercadolibre', 'tiendanube', 'shopify', 'mercadopago']);
+const MARKETPLACE_CHANNEL_IDS = new Set<string>(['mercadolibre', 'tiendanube', 'shopify']);
 
 type QuickMenuPreviewItem = {
   id?: string;
@@ -893,7 +902,12 @@ const IntegracionesPage = () => {
     }
   };
 
+  const marketplaces = useMarketplaceStatus(showCommerceIntegrations ? currentSlug : null);
   const getIntegrationStatus = (provider: string) => {
+      if (MARKETPLACE_CHANNEL_IDS.has(provider)) {
+        const row = marketplaces.status?.providers.find(item => item.key === provider);
+        return { provider, connected: row?.connected === true };
+      }
       if (provider === 'whatsapp') return { provider, connected: whatsappConnection?.production_ready === true
         && whatsappConnection.environment === 'production' && channelContract?.channels?.find(channel => channel.id === 'whatsapp')?.ready === true };
       return integrations.find(i => i.provider === provider) || { provider, connected: false };
@@ -2116,6 +2130,17 @@ const IntegracionesPage = () => {
                                          </> : <p role="status">WhatsApp no tiene un proveedor verificado para esta organización.</p>}
                                          {channelContract ? <Button variant="outline" className="min-h-11" onClick={() => setChannelAttempt(value => value + 1)}>Actualizar estado de WhatsApp</Button> : null}
                                      </div>
+                                ) : MARKETPLACE_CHANNEL_IDS.has(selectedChannel) && currentSlug ? (
+                                    <div className="space-y-6">
+                                        <MarketplaceConnectionPanel
+                                            tenantSlug={currentSlug}
+                                            provider={selectedChannel as MarketplaceKey}
+                                            status={marketplaces.status}
+                                            failed={marketplaces.failed}
+                                            onChanged={() => { void marketplaces.reload(); }}
+                                        />
+                                        <UpcomingMarketplaces status={marketplaces.status} />
+                                    </div>
                                 ) : selectedChannel === 'mercadopago' ? (
                                     renderPaymentGatewayPanel()
                                 ) : selectedChannel === 'email' ? (
