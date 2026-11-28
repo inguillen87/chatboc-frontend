@@ -442,6 +442,7 @@ function AppRoutes() {
     "/iframe",
     // A voucher is a ticket shown at a counter; "v" is not an organization.
     "/v",
+    "/r",
     "/demo",
     "/demo-catalogs",
     "/e",
