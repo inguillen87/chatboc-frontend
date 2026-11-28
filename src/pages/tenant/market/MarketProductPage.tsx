@@ -363,7 +363,10 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                 {cartItemsCount > 0 ? <Badge variant="secondary">{cartItemsCount} en carrito</Badge> : null}
               </div>
               <div>
-                <CardTitle className="text-xl">Comprar o consultar</CardTitle>
+                <p className="text-sm text-slate-300">Precio</p>
+                <CardTitle className="mt-1 text-3xl font-bold tracking-tight" data-testid="market-product-buy-price">
+                  {displayMarketPrice(product.priceText, product.price, product.currency ?? 'ARS') ?? 'A cotizar'}
+                </CardTitle>
                 <p className="mt-1 text-sm text-slate-300">
                   Agregalo al carrito o consultanos por WhatsApp.
                 </p>
@@ -436,7 +439,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
               ) : null}
 
               <Button
-                className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                className="w-full"
                 onClick={handleAddToCart}
                 disabled={!canAddToCart || isCartLoading}
               >
@@ -444,7 +447,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                 {isCartLoading ? 'Agregando...' : canAddToCart ? 'Agregar al carrito' : 'No se puede comprar por ahora'}
               </Button>
 
-              <Button asChild variant="secondary" className="w-full" data-testid="market-product-cart-link">
+              <Button asChild variant="outline" className="w-full border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" data-testid="market-product-cart-link">
                 <Link to={cartPath}>
                   <ShoppingCart className="mr-2 h-4 w-4" aria-hidden="true" />
                   Ver carrito{cartItemsCount ? ` (${cartItemsCount})` : ''}
