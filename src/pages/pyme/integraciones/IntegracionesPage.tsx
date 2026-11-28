@@ -107,6 +107,18 @@ const INTEGRATION_LOGOS: Record<string, string> = {
   email: "https://cdn-icons-png.flaticon.com/512/281/281769.png"
 };
 
+function ChannelLogo({ src, label }: { src?: string; label: string }) {
+  const [failed, setFailed] = useState(!src);
+  if (failed) {
+    return (
+      <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-base font-semibold text-foreground">
+        {label.trim().charAt(0).toUpperCase()}
+      </span>
+    );
+  }
+  return <img src={src} alt="" className="h-10 w-10 shrink-0 object-contain" onError={() => setFailed(true)} />;
+}
+
 const CHANNELS = [
     { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
     { id: 'telegram', label: 'Telegram', icon: Send },
@@ -2076,12 +2088,7 @@ const IntegracionesPage = () => {
                             <CardHeader>
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="flex min-w-0 items-center gap-4">
-                                        <img
-                                            src={INTEGRATION_LOGOS[selectedChannel]}
-                                            alt={selectedChannelConfig.label}
-                                            className="h-10 w-10 object-contain"
-                                            onError={(e) => { e.currentTarget.style.display='none'; }}
-                                        />
+                                        <ChannelLogo key={selectedChannel} src={INTEGRATION_LOGOS[selectedChannel]} label={selectedChannelConfig.label} />
                                         <div className="min-w-0">
                                             <CardTitle className="break-words">{selectedChannelGuidance.title}</CardTitle>
                                             <CardDescription className="break-words">
