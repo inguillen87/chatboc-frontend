@@ -1179,6 +1179,10 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
           product_id: getFirst(raw, ['product_id', 'productId', 'catalogo_item_id', 'catalog_item_id']) as MarketCartItem['product_id'],
           line_id: lineId as MarketCartItem['line_id'],
           quantity,
+          // The guest cart speaks Spanish: nombre, imagen_url, categoria.
+          name: asStringOrNull(getFirst(raw, ['name', 'nombre', 'title', 'titulo'])) ?? (item as MarketCartItem).name ?? 'Producto',
+          imageUrl: asStringOrNull(getFirst(raw, ['imageUrl', 'image_url', 'imagen_url', 'imagen'])) ?? null,
+          category: asStringOrNull(getFirst(raw, ['category', 'categoria'])) ?? (item as MarketCartItem).category ?? null,
           // Carts from the guest endpoint send the unit price as precio_unitario.
           price: asNumberOrNull(getFirst(raw, ['price', 'precio_unitario', 'unit_price', 'precio'])) ?? undefined,
         } as MarketCartItem;

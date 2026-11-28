@@ -1,18 +1,9 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { MarketCartItem, MarketCartPromotions, MarketCheckoutOptions, MarketCheckoutPreview, MarketCommercialState, MarketContinuity, MarketCustomerProfile, MarketRecommendation, MarketRewardsProfile, MarketSuggestedAction } from '@/types/market';
 import { displayMarketPrice, formatCurrency } from '@/utils/currency';
-import { ArrowRightLeft, Gift, MessageCircle, Phone, ShoppingCart } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import {
-  getCommercialStageLabel,
-  getCommercialStageTone,
-  getCommercialToneClassName,
-  normalizeChannelLabel,
-} from '@/utils/orderCommercial';
-import SecureCheckoutNotice from './SecureCheckoutNotice';
+import { Gift, ShoppingCart } from 'lucide-react';
 
 interface CartSummaryProps {
   items: MarketCartItem[];
@@ -78,11 +69,6 @@ export default function CartSummary({
   }, [items, totalAmount, totalPoints]);
 
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
-  const stageLabel = getCommercialStageLabel(commercialState?.stage);
-  const channelLabel = normalizeChannelLabel(commercialState?.channel || customerProfile?.channel_group || null);
-  const contactPhone = customerProfile?.phone?.trim() || customerProfile?.whatsapp?.trim() || null;
-  const validSuggestedActions = Array.isArray(suggestedActions) ? suggestedActions.filter((item) => item?.label) : [];
-  const validRecommendations = Array.isArray(recommendations) ? recommendations.filter((item) => item?.title || item?.label) : [];
   const redemptionOptions = useMemo(
     () =>
       (rewardsProfile?.available_redemptions ?? []).filter((item) => {
@@ -91,9 +77,6 @@ export default function CartSummary({
       }),
     [rewardsProfile?.available_redemptions],
   );
-  const appliedPromotions = Array.isArray(promotions?.promociones_aplicadas)
-    ? promotions.promociones_aplicadas.filter(Boolean)
-    : [];
   const hasPromotionSavings =
     typeof promotions?.total_ahorrado === 'number' &&
     promotions.total_ahorrado > 0 &&
@@ -110,216 +93,88 @@ export default function CartSummary({
     return 'Consultar';
   };
 
+  const showPoints = derivedTotals.points > 0 || redemptionOptions.length > 0;
+  const finalTotal = hasPromotionSavings ? promotions!.total_con_descuento! : derivedTotals.amount;
+
+  // Buyer-first summary: what you are taking, what it costs, one clear next step.
+  // Store-team context (stage, channel, continuity, gateway) lives in the panel.
   return (
     <Card className="shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <div>
-          <p className="text-sm text-muted-foreground">Resumen del carrito</p>
-          <CardTitle className="text-2xl">{itemCount} ítem(s)</CardTitle>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <ShoppingCart className="h-5 w-5" />
-        </div>
+      <CardHeader className="flex flex-row items-baseline justify-between space-y-0 pb-2">
+        <CardTitle className="text-xl">Tu carrito</CardTitle>
+        <span className="text-sm text-muted-foreground">
+          {itemCount} {itemCount === 1 ? 'producto' : 'productos'}
+        </span>
       </CardHeader>
 
-      <CardContent className="space-y-3 text-sm">
-        {stageLabel || customerProfile?.name || contactPhone || continuity?.summary || checkoutPreview?.next_step_label || checkoutOptions?.gateway_hint || continuity?.resume_key ? (
-          <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {stageLabel ? (
-                <Badge variant="outline" className={getCommercialToneClassName(getCommercialStageTone(commercialState?.stage))}>
-                  {stageLabel}
-                </Badge>
-              ) : null}
-              <Badge variant="outline" className="border-border/60 bg-background/80">
-                {channelLabel}
-              </Badge>
-              {commercialState?.supports_handoff ? (
-                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                  <ArrowRightLeft className="mr-1 h-3 w-3" /> Handoff disponible
-                </Badge>
-              ) : null}
-            </div>
-            {(customerProfile?.name || contactPhone || continuity?.summary || continuity?.resume_key || checkoutPreview?.next_step_label || checkoutOptions?.gateway_hint) ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                {customerProfile?.name ? (
-                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Perfil</p>
-                    <p className="mt-1 font-medium text-foreground">{customerProfile.name}</p>
-                  </div>
-                ) : null}
-                {contactPhone ? (
-                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Canal de contacto</p>
-                    <p className="mt-1 flex items-center gap-2 font-medium text-foreground">
-                      {(commercialState?.channel || customerProfile?.channel_group) === 'phone' ? <Phone className="h-3.5 w-3.5" /> : <MessageCircle className="h-3.5 w-3.5" />}
-                      {contactPhone}
-                    </p>
-                  </div>
-                ) : null}
-                {continuity?.summary ? (
-                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Continuidad</p>
-                    <p className="mt-1 font-medium text-foreground">{continuity.summary}</p>
-                  </div>
-                ) : null}
-                {(continuity?.resume_key || checkoutPreview?.next_step_label) ? (
-                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Checkout</p>
-                    {checkoutPreview?.next_step_label ? <p className="mt-1 font-medium text-foreground">{checkoutPreview.next_step_label}</p> : null}
-                    {continuity?.resume_key ? <p className="mt-1 text-xs text-muted-foreground">{continuity.resume_key}</p> : null}
-                  </div>
-                ) : null}
-                {checkoutOptions?.gateway_hint ? (
-                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Gateway</p>
-                    <p className="mt-1 font-medium text-foreground">{checkoutOptions.gateway_hint}</p>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {validSuggestedActions.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {validSuggestedActions.slice(0, 4).map((action, index) => (
-                  <Badge key={`${action.label}-${index}`} variant="outline" className="border-primary/20 bg-primary/5 text-primary">
-                    {action.label}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
+      <CardContent className="space-y-4 text-sm">
         {items.length ? (
-          <div className="space-y-2">
+          <ul className="divide-y divide-border/60">
             {items.map((item) => (
-              <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg border bg-muted/40 p-3">
-                <div className="space-y-1">
-                  <p className="font-medium leading-snug">{item.name}</p>
-                  <p className="text-xs text-muted-foreground">Cantidad: {item.quantity}</p>
-                  <div className="flex flex-wrap gap-2 text-[11px] uppercase text-muted-foreground">
-                    {item.modality ? <span className="font-semibold">{item.modality}</span> : null}
-                    {item.points ? <span>{item.points} pts</span> : null}
-                  </div>
+              <li key={item.id} className="flex items-center gap-3 py-3 first:pt-0">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" loading="lazy" />
+                ) : (
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground" aria-hidden>
+                    <ShoppingCart className="h-5 w-5" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium leading-snug text-foreground">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.quantity} {item.quantity === 1 ? 'unidad' : 'unidades'}
+                  </p>
                 </div>
-                <div className="flex flex-col items-end gap-2 text-right">
-                  <span className="text-sm font-semibold text-foreground">{formatItemPrice(item)}</span>
+                <div className="flex shrink-0 flex-col items-end">
+                  <span className="font-semibold text-foreground">{formatItemPrice(item)}</span>
                   {onRemoveItem ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 px-2 text-xs"
+                    <button
+                      type="button"
+                      className="mt-0.5 text-xs text-muted-foreground underline-offset-2 hover:text-destructive hover:underline disabled:opacity-50"
                       onClick={() => onRemoveItem(item.id)}
                       disabled={isUpdating}
                     >
                       Quitar
-                    </Button>
+                    </button>
                   ) : null}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">Tu carrito está vacío.</p>
+          <p className="py-4 text-center text-muted-foreground">Tu carrito está vacío.</p>
         )}
 
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">{hasPromotionSavings ? 'Subtotal' : 'Total'}</span>
-          <span className="text-lg font-semibold">{formatCurrency(derivedTotals.amount, currency)}</span>
-        </div>
-        {promotions ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Promociones aplicadas</p>
-                {appliedPromotions.length ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {appliedPromotions.slice(0, 4).map((promo) => (
-                      <Badge key={promo} variant="outline" className="border-emerald-300 bg-white/70 text-emerald-800">
-                        {promo}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm font-medium">El carrito ya fue evaluado contra las promociones vigentes.</p>
-                )}
-              </div>
-              {typeof promotions.total_ahorrado === 'number' && promotions.total_ahorrado > 0 ? (
-                <div className="text-right">
-                  <p className="text-xs text-emerald-700">Ahorras</p>
-                  <p className="text-base font-bold">{formatCurrency(promotions.total_ahorrado, currency)}</p>
-                </div>
-              ) : null}
-            </div>
-            {typeof promotions.total_con_descuento === 'number' ? (
-              <div className="mt-3 flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
-                <span className="text-sm font-medium">Total con descuento</span>
-                <span className="text-lg font-black">{formatCurrency(promotions.total_con_descuento, currency)}</span>
-              </div>
-            ) : null}
+        {hasPromotionSavings ? (
+          <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 px-3 py-2 text-emerald-700 dark:text-emerald-300">
+            <span>Ahorrás con promociones</span>
+            <span className="font-semibold">{formatCurrency(promotions!.total_ahorrado!, currency)}</span>
           </div>
         ) : null}
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Puntos</span>
-          <span className="font-medium">{derivedTotals.points}</span>
+
+        <div className="flex items-baseline justify-between border-t border-border/60 pt-3">
+          <span className="text-muted-foreground">Total</span>
+          <span className="text-2xl font-bold tracking-tight text-foreground">{formatCurrency(finalTotal, currency)}</span>
         </div>
 
-        {(rewardsLoading || rewardsProfile) ? (
-          <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Puntos disponibles</p>
-                <p className="mt-1 text-lg font-semibold text-foreground">
-                  {typeof rewardsProfile?.wallet?.balance === 'number'
-                    ? rewardsProfile.wallet.balance.toLocaleString('es-AR')
-                    : rewardsLoading
-                      ? '...'
-                      : '0'}
-                </p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Gift className="h-5 w-5" />
-              </div>
+        {showPoints ? (
+          <div className="rounded-lg bg-muted/40 px-3 py-2">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-muted-foreground"><Gift className="h-4 w-4" aria-hidden /> Puntos de esta compra</span>
+              <span className="font-medium">{derivedTotals.points.toLocaleString('es-AR')}</span>
             </div>
-            {typeof rewardsProfile?.wallet?.pending_cart_points === 'number' ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Este carrito puede sumar {rewardsProfile.wallet.pending_cart_points.toLocaleString('es-AR')} pts.
-              </p>
-            ) : null}
-            {redemptionOptions.length > 0 ? (
-              <div className="mt-3 space-y-2">
+            {redemptionOptions.length > 0 && onRedeemReward ? (
+              <div className="mt-2 flex flex-wrap gap-2">
                 {redemptionOptions.slice(0, 3).map((item, index) => {
                   const rewardId = String(item.reward_id ?? item.id ?? index);
                   const label = item.label || item.title || item.description || rewardId;
                   const pointCost = item.cost_points ?? item.points;
                   return (
-                    <div key={`${rewardId}-${index}`} className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground">{label}</p>
-                          {item.description && item.description !== label ? (
-                            <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
-                          ) : null}
-                          {typeof pointCost === 'number' ? (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {pointCost.toLocaleString('es-AR')} pts
-                            </p>
-                          ) : null}
-                        </div>
-                        {onRedeemReward ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 shrink-0"
-                            disabled={Boolean(item.disabled) || redeemingRewardId === rewardId}
-                            onClick={() => onRedeemReward(rewardId)}
-                          >
-                            {redeemingRewardId === rewardId ? '...' : 'Canjear'}
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
+                    <Button key={`${rewardId}-${index}`} type="button" size="sm" variant="outline" className="h-8"
+                      disabled={Boolean(item.disabled) || redeemingRewardId === rewardId || rewardsLoading}
+                      onClick={() => onRedeemReward(rewardId)}>
+                      {redeemingRewardId === rewardId ? '…' : `${label}${typeof pointCost === 'number' ? ` · ${pointCost.toLocaleString('es-AR')} pts` : ''}`}
+                    </Button>
                   );
                 })}
               </div>
@@ -327,50 +182,27 @@ export default function CartSummary({
           </div>
         ) : null}
 
-        {validRecommendations.length > 0 ? (
-          <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Recomendaciones</p>
-            <div className="mt-2 space-y-2">
-              {validRecommendations.slice(0, 3).map((item, index) => (
-                <div key={`${item.id ?? item.title ?? item.label}-${index}`} className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-                  <p className="text-sm font-medium text-foreground">{item.title || item.label}</p>
-                  {item.description ? <p className="mt-1 text-xs text-muted-foreground">{item.description}</p> : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {(checkoutOptions || checkoutPreview || checkoutBlockedReason) ? (
-          <SecureCheckoutNotice
-            checkoutOptions={checkoutOptions}
-            checkoutPreview={checkoutPreview}
-            blockedReason={checkoutBlockedReason}
-            compact
-          />
+        {checkoutBlockedReason ? (
+          <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">{checkoutBlockedReason}</p>
+        ) : checkoutOptions?.gateway_hint ? (
+          <p className="text-xs text-muted-foreground">{checkoutOptions.gateway_hint}</p>
         ) : null}
       </CardContent>
 
-      <Separator />
-
-      <CardFooter className="flex flex-col gap-3">
+      <CardFooter className="flex flex-col gap-2 pt-0">
+        <Button className="w-full" size="lg" onClick={onCheckout} disabled={!items.length || isSubmitting || Boolean(checkoutBlockedReason)}>
+          {isSubmitting ? 'Procesando…' : 'Finalizar pedido'}
+        </Button>
         {onClearCart && items.length ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
+          <button
+            type="button"
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
             onClick={onClearCart}
             disabled={isUpdating}
           >
             Vaciar carrito
-          </Button>
+          </button>
         ) : null}
-        <Button className="w-full" size="lg" onClick={onCheckout} disabled={!items.length || isSubmitting || Boolean(checkoutBlockedReason)}>
-          {isSubmitting ? 'Procesando...' : 'Finalizar pedido'}
-        </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          El pedido se confirma con validacion del backend y seguimiento del comercio.
-        </p>
       </CardFooter>
     </Card>
   );

@@ -44,7 +44,7 @@ describe('MarketCartPage stays in step with the buyer cart', () => {
     mount();
     expect(await screen.findByRole('heading', { name: 'Tu carrito' })).toBeTruthy();
     act(() => notifyMarketCartChanged('tienda', captureChatbocSessionRevision()));
-    expect(await screen.findByRole('heading', { name: 'Tu carrito tiene 1 producto' })).toBeTruthy();
+    expect(await screen.findByText('1 producto')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: /Finalizar pedido/ }).length).toBeGreaterThan(0);
   });
 
@@ -55,7 +55,7 @@ describe('MarketCartPage stays in step with the buyer cart', () => {
       mount();
       await screen.findByRole('heading', { name: 'Tu carrito' });
       await act(async () => { vi.advanceTimersByTime(1600); });
-      await waitFor(() => expect(screen.getByRole('heading', { name: 'Tu carrito tiene 2 productos' })).toBeTruthy());
+      await waitFor(() => expect(screen.getByText('2 productos')).toBeTruthy());
     } finally {
       vi.useRealTimers();
     }
