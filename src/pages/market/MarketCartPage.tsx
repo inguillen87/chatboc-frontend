@@ -36,6 +36,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { isBackofficeRole } from '@/utils/roles';
 
 type ContactInfo = {
   name?: string;
@@ -680,7 +681,8 @@ export default function MarketCartPage() {
         </section>
 
 
-        {cartCommercialState || cartCustomerProfile ? (
+        {/* Omnichannel continuity is the store team's working context, not the buyer's. */}
+        {isBackofficeRole(typeof user?.rol === 'string' ? user.rol : null) && (cartCommercialState || cartCustomerProfile) ? (
           <CommercialStateCard
             customerProfile={cartCustomerProfile}
             commercialState={cartCommercialState}
