@@ -7,7 +7,19 @@ import { MarketProduct } from '@/types/market';
 import ProductPlaceholder from './ProductPlaceholder';
 import { displayMarketPrice } from '@/utils/currency';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
+
 import { Check, ExternalLink, MessageCircle, Share2, ShoppingBag, Sparkles, Star } from 'lucide-react';
+
+const MODALITY_LABELS: Record<string, string> = {
+  canje: 'Canje', puntos: 'Canje', donacion: 'Donación', 'donación': 'Donación', inscripcion: 'Inscripción',
+};
+
+/** Short badge for anything that is not a plain sale; unknown values are shown as sent. */
+const marketModalityLabel = (modality: string | null | undefined): string | null => {
+  const key = (modality ?? '').trim().toLowerCase();
+  if (!key || ['venta', 'compra', 'sale'].includes(key)) return null;
+  return MODALITY_LABELS[key] ?? modality ?? null;
+};
 
 interface ProductCardProps {
   product: MarketProduct;
@@ -41,6 +53,7 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
   };
   const currency = (product.currency ?? 'ARS').toUpperCase();
   const displayPrice = displayMarketPrice(product.priceText, product.price, currency) ?? '';
+  const modalityLabel = marketModalityLabel(product.modality);
   const hasRating = typeof product.rating === 'number' && typeof product.ratingCount === 'number';
   const validation = getMarketCommercialValidation(product, product.inventory);
   const canAddToCart = validation.canStartCheckout && product.disponible !== false;
@@ -82,9 +95,9 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
               </Link>
             ) : product.name}
           </CardTitle>
-          {product.modality && !['venta', 'compra', 'sale'].includes(product.modality.trim().toLowerCase()) ? (
-            <Badge variant="outline" className="whitespace-nowrap text-xs uppercase">
-              {product.modality}
+          {modalityLabel ? (
+            <Badge variant="outline" className="whitespace-nowrap text-xs">
+              {modalityLabel}
             </Badge>
           ) : null}
         </div>
@@ -101,7 +114,7 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
         {displayPrice ? <div className="text-lg font-bold text-primary sm:text-xl">{displayPrice}</div> : null}
         {product.points ? (
           <Badge variant="secondary" className="text-sm font-medium">
-            {product.points} pts
+            {product.points.toLocaleString('es-AR')} pts
           </Badge>
         ) : null}
       </CardContent>
