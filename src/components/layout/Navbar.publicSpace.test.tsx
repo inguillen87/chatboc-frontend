@@ -208,7 +208,7 @@ describe('Navbar preserved presentation boundaries',()=>{
 });
 
 describe('Navbar tenant storefront identity',()=>{
-  it.each(['/t/institution-a/market','/t/institution-a/market/product/12','/t/institution-a/cart','/t/institution-a/checkout'])(
+  it.each(['/t/institution-a/market','/t/institution-a/market/product/12','/t/institution-a/product/168','/t/institution-a/cart','/t/institution-a/checkout'])(
     'wears the published identity and keeps the buyer cart on %s',path=>{
       mount(path);
       expect(screen.getByRole('link',{name:'Published institution A'})).toHaveAttribute('data-tenant-id','41');
