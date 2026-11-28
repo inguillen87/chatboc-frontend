@@ -175,7 +175,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     const emptyState = screen.getByTestId('market-assisted-empty-state');
     expect(header.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(controls.compareDocumentPosition(emptyState) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Marketplace' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tienda' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Buscar producto/i)).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /Filtrar por categoría/i })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /Ordenar productos/i })).toBeInTheDocument();
