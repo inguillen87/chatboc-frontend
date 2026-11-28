@@ -34,7 +34,7 @@ describe('VoucherPage', () => {
     const { unmount } = render(<VoucherPage />);
     expect(await screen.findByText(/Ya usado/)).toBeTruthy();
     unmount();
-    apiFetch.mockRejectedValueOnce(new ApiError('not found', 404));
+    apiFetch.mockRejectedValueOnce(new ApiError('unprocessable', 422));
     render(<VoucherPage />);
     expect(await screen.findByText('No encontramos este código')).toBeTruthy();
   });
