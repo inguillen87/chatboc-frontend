@@ -657,6 +657,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // With a full catalog the help blocks go after the products, so browsing is not
+  // interrupted; with few or no products they stay near the top, where they help most.
+  const helpOrder = products.length > 6 ? 'order-4' : 'order-2';
   // White label: the store is presented with its own name and logo, never the platform's.
   const storeTenant = tenantContext?.tenant;
   const storeMatches = Boolean(storeTenant && storeTenant.slug === tenantSlug);
@@ -922,7 +925,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         {showAssistedIntake ? (
           <details
             data-testid="market-assisted-command"
-            className="group order-2 overflow-hidden border-y bg-primary/5 md:col-span-2 lg:col-span-3"
+            className={`group ${helpOrder} overflow-hidden border-y bg-primary/5 md:col-span-2 lg:col-span-3`}
             open={isAssistedPanelOpen}
           >
             <summary
@@ -974,7 +977,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
         <details
           data-testid="market-assisted-details"
-          className="group order-2 overflow-hidden border-y bg-muted/20 md:col-span-2 lg:col-span-3"
+          className={`group ${helpOrder} overflow-hidden border-y bg-muted/20 md:col-span-2 lg:col-span-3`}
         >
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 sm:px-4">
             <span className="min-w-0">
