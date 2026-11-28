@@ -443,6 +443,7 @@ function AppRoutes() {
     // A voucher is a ticket shown at a counter; "v" is not an organization.
     "/v",
     "/r",
+    "/pagar",
     "/demo",
     "/demo-catalogs",
     "/e",

@@ -69,6 +69,7 @@ const CatalogManagementPage = React.lazy(() => import('@/pages/admin/CatalogMana
 const VoucherCheckPage = React.lazy(() => import('@/pages/admin/VoucherCheckPage'));
 const VoucherPage = React.lazy(() => import('@/pages/VoucherPage'));
 const ReceiptPage = React.lazy(() => import('@/pages/ReceiptPage'));
+const PayLinkPage = React.lazy(() => import('@/pages/PayLinkPage'));
 const OpinarArPage = React.lazy(() => import('@/pages/OpinarArPage'));
 const EstadisticasPage = React.lazy(() => import('@/pages/EstadisticasPage'));
 const AnalyticsPage = React.lazy(() => import('@/pages/analytics/AnalyticsPage'));
@@ -561,6 +562,7 @@ const routes: RouteConfig[] = [
   { path: '/cuenta', tenantHost: 'public', element: <UserAccount /> },
   { path: '/v/:code', tenantHost: 'public', element: <VoucherPage />, allowGuest: true },
   { path: '/r/:code', tenantHost: 'public', element: <ReceiptPage />, allowGuest: true },
+  { path: '/pagar/:code', tenantHost: 'public', element: <PayLinkPage />, allowGuest: true },
   { path: '/demo', element: <Demo /> },
   { path: '/contacto', element: <Navigate to="/demo?intent=ventas" replace /> },
   { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },

@@ -37,6 +37,7 @@ import { Progress } from '@/components/ui/progress';
 import CatalogQualityCommandCenter from '@/components/admin/CatalogQualityCommandCenter';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
 import CatalogTemplatesDialog from '@/components/admin/catalog/CatalogTemplatesDialog';
+import PaymentLinksDialog from '@/components/admin/catalog/PaymentLinksDialog';
 import ProductImageManager from '@/components/admin/catalog/ProductImageManager';
 import {
   getProductGalleryUrls,
@@ -556,6 +557,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
             </DialogContent>
           </Dialog>
           <CatalogTemplatesDialog tenantSlug={effectiveTenantSlug || ''} onApplied={() => void loadProducts()} />
+          <PaymentLinksDialog tenantSlug={effectiveTenantSlug || ''} />
           {effectiveTenantSlug ? (
             <Button variant="outline" asChild>
               <Link to={`/t/${encodeURIComponent(effectiveTenantSlug)}/admin/vouchers`}>

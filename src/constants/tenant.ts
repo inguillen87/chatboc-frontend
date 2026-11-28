@@ -4,6 +4,7 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'e',
   'v', // /v/:code is a voucher, not an organization
   'r', // /r/:code is a payment receipt
+  'pagar', // /pagar/:code is a shared charge
   'iframe',
   'embed',
   'widget',
