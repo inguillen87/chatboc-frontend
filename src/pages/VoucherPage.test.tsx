@@ -38,4 +38,12 @@ describe('VoucherPage', () => {
     render(<VoucherPage />);
     expect(await screen.findByText('No encontramos este código')).toBeTruthy();
   });
+
+  it('retries quietly when the first request fails before the server answers', async () => {
+    apiFetch.mockRejectedValueOnce(new Error('bootstrap not ready'));
+    apiFetch.mockResolvedValueOnce({ ...base, status: 'valid', used_at: null });
+    render(<VoucherPage />);
+    expect(await screen.findByText('K7MQ-4XPZ-2R', {}, { timeout: 3000 })).toBeTruthy();
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
 });

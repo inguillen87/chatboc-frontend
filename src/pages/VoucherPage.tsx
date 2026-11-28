@@ -24,28 +24,48 @@ const formatDate = (value: string | null) => {
     : date.toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 };
 
+const RETRY_DELAYS_MS = [600, 1500, 3000];
+
 /** A person's voucher: the code large, its QR, and whether it was already used. */
 export default function VoucherPage() {
   const { code = '' } = useParams();
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
 
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     document.title = 'Tu código';
     let active = true;
-    apiFetch<Voucher>(`/api/public/vouchers/${encodeURIComponent(code)}`, { skipAuth: true, suppressPanel401Redirect: true })
-      .then((body) => {
-        if (!active) return;
-        setVoucher(body);
-        setState('ready');
-      })
-      .catch((error) => {
-        if (active) setState(error instanceof ApiError && (error.status === 422 || error.status === 404) ? 'missing' : 'error');
-      });
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    setState('loading');
+    // Opened cold from WhatsApp, the first request can race the app's own
+    // start-up; a failure that is not the server's answer is retried quietly.
+    const load = (round: number) => {
+      apiFetch<Voucher>(`/api/public/vouchers/${encodeURIComponent(code)}`, { skipAuth: true, suppressPanel401Redirect: true })
+        .then((body) => {
+          if (!active) return;
+          setVoucher(body);
+          setState('ready');
+        })
+        .catch((error) => {
+          if (!active) return;
+          const answered = error instanceof ApiError && error.status > 0 && error.status < 500;
+          if (answered) {
+            setState(error.status === 422 || error.status === 404 ? 'missing' : 'error');
+          } else if (round < RETRY_DELAYS_MS.length) {
+            retryTimer = setTimeout(() => load(round + 1), RETRY_DELAYS_MS[round]);
+          } else {
+            setState('error');
+          }
+        });
+    };
+    load(0);
     return () => {
       active = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [code]);
+  }, [code, attempt]);
 
   if (state === 'loading') {
     return <main className="mx-auto max-w-sm px-6 py-24 text-center text-muted-foreground">Cargando tu código…</main>;
@@ -60,8 +80,17 @@ export default function VoucherPage() {
         <p className="mt-2 text-sm text-muted-foreground">
           {state === 'missing'
             ? 'Revisá que el link esté completo, tal como llegó por WhatsApp.'
-            : 'Probá de nuevo en unos segundos.'}
+            : 'Puede ser la conexión. Probá de nuevo.'}
         </p>
+        {state === 'error' ? (
+          <button
+            type="button"
+            onClick={() => setAttempt((value) => value + 1)}
+            className="mt-6 rounded-full border px-5 py-2 text-sm font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Cargar de nuevo
+          </button>
+        ) : null}
       </main>
     );
   }
