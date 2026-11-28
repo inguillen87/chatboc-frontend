@@ -19,6 +19,23 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onAdd, onConsult, isAdding, detailHref }: ProductCardProps) {
+  const [shareNote, setShareNote] = React.useState<string | null>(null);
+  // Share the store's own product page when the catalog has no share link:
+  // the phone's share sheet when there is one, otherwise copy the link.
+  const shareProduct = async () => {
+    if (product.whatsappShareUrl) { window.open(product.whatsappShareUrl, '_blank', 'noopener,noreferrer'); return; }
+    if (product.publicUrl) { window.open(product.publicUrl, '_blank', 'noopener,noreferrer'); return; }
+    if (!detailHref) return;
+    const url = new URL(detailHref, window.location.origin).toString();
+    try {
+      if (typeof navigator.share === 'function') { await navigator.share({ title: product.name, url }); return; }
+      await navigator.clipboard.writeText(url);
+      setShareNote('Link copiado');
+      window.setTimeout(() => setShareNote(null), 2500);
+    } catch {
+      /* The person closed the share sheet or the clipboard is unavailable. */
+    }
+  };
   const currency = (product.currency ?? 'ARS').toUpperCase();
   const displayPrice = displayMarketPrice(product.priceText, product.price, currency) ?? '';
   const hasRating = typeof product.rating === 'number' && typeof product.ratingCount === 'number';
@@ -154,18 +171,10 @@ export default function ProductCard({ product, onAdd, onConsult, isAdding, detai
             className="w-full"
             variant="outline"
             size="default"
-            onClick={() => {
-              if (product.whatsappShareUrl) {
-                window.open(product.whatsappShareUrl, '_blank', 'noopener,noreferrer');
-                return;
-              }
-              if (product.publicUrl) {
-                window.open(product.publicUrl, '_blank', 'noopener,noreferrer');
-              }
-            }}
-            disabled={!product.publicUrl && !product.whatsappShareUrl}
+            onClick={() => { void shareProduct(); }}
+            disabled={!product.publicUrl && !product.whatsappShareUrl && !detailHref}
           >
-            <Share2 className="mr-2 h-4 w-4" /> Compartir
+            <Share2 className="mr-2 h-4 w-4" /> {shareNote ?? 'Compartir'}
           </Button>
         </div>
         {product.publicUrl ? (
