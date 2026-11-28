@@ -45,6 +45,7 @@ import {
   type AttachmentLike,
 } from "@/utils/attachment";
 
+import { ClaimSatisfaction, parseClaimSatisfaction } from "@/components/tracking/ClaimSatisfaction";
 const TrackingMap = React.lazy(() => import("@/components/ui/TrackingMap"));
 
 type AnyRecord = Record<string, any>;
@@ -1055,6 +1056,9 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                 <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
               </div>
             </div> : null}
+            {kind === "claim" && pin && parseClaimSatisfaction(payload?.satisfaction)
+              ? <ClaimSatisfaction state={parseClaimSatisfaction(payload?.satisfaction)!} pin={pin} />
+              : null}
           </div> : null}
 
           <div className="border-t border-border/70 bg-background/50 p-4 md:px-5">
