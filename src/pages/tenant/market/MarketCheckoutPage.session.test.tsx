@@ -79,7 +79,7 @@ describe('checkout changes during preflight',()=>{
   const pending=deferred<Record<string,unknown>>();mocks.preview.mockReturnValueOnce(pending.promise);const view=show();
   fireEvent.click(screen.getByRole('button',{name:'Iniciar checkout'}));
   if(condition==='items')mocks.cart={...mocks.cart,items:[{id:'2',quantity:2,price:50,name:'Changed product'}]};
-  if(condition==='blocked')mocks.cart={...mocks.cart,checkoutOptions:{payment_required:true,payment_ready:false}};
+  if(condition==='blocked')mocks.cart={...mocks.cart,checkoutOptions:{payment_required:true,payment_ready:true,stock_status:'stock_unknown'}};
   if(condition==='loading')mocks.cart={...mocks.cart,isLoading:true};
   view.rerender(fixture());await act(async()=>{pending.resolve({payment_ready:true});await pending.promise;});
   expect(mocks.start).not.toHaveBeenCalled();expect(screen.getByText('No pudimos iniciar el checkout')).toBeInTheDocument();

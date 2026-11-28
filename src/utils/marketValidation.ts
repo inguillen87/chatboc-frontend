@@ -3,6 +3,8 @@ type ValidationSource = Record<string, unknown> | null | undefined;
 export interface MarketCommercialValidation {
   canConfirmPurchase: boolean;
   canStartCheckout: boolean;
+  /** True when the only obstacle is the missing online payment setup. */
+  canOrderPayLater?: boolean;
   reason: string | null;
   amountValidated: boolean | null;
   stockStatus: string | null;
@@ -206,9 +208,13 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
   const normalizedRenderAs = renderAs?.toLowerCase() ?? null;
   const normalizedActionHint = actionHint?.toLowerCase() ?? null;
   let reason: string | null = null;
+  // Reasons other than "online payment is not set up yet": with only that one,
+  // a store can still take the order and agree on payment with the buyer.
+  let blockingBeyondGateway = false;
 
-  const setReason = (nextReason: string) => {
+  const setReason = (nextReason: string, gatewayOnly = false) => {
     reason = reason ?? nextReason;
+    if (!gatewayOnly) blockingBeyondGateway = true;
   };
 
   const planRequired =
@@ -239,6 +245,7 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
     setReason(
       customerPendingGatewayCopy ??
         'El proveedor de pago todavia no esta configurado para cobrar online.',
+      true,
     );
   }
   if (paymentRequired === true && cardDataInChat === true) {
@@ -258,12 +265,14 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
     setReason(
       customerPendingGatewayCopy ??
         'El proveedor de pago todavia no esta configurado para cobrar online.',
+      true,
     );
   }
 
   return {
     canConfirmPurchase: !reason && amountValidated === true && !unsafeStock && availableToSell !== false,
     canStartCheckout: !reason,
+    canOrderPayLater: Boolean(reason) && !blockingBeyondGateway,
     reason,
     amountValidated,
     stockStatus,

@@ -188,4 +188,19 @@ describe('getMarketCommercialValidation', () => {
       reason: 'El pago debe confirmarse por webhook del proveedor antes de marcar la orden como pagada.',
     });
   });
+
+  it('lets the store take the order when only online payment is missing', () => {
+    const result = getMarketCommercialValidation({ payment_required: true, payment_ready: false });
+    expect(result.canStartCheckout).toBe(false);
+    expect(result.canOrderPayLater).toBe(true);
+  });
+
+  it('does not offer pay-later when stock also blocks the order', () => {
+    const result = getMarketCommercialValidation({
+      payment_required: true,
+      payment_ready: false,
+      stock_status: 'stock_unknown',
+    });
+    expect(result.canOrderPayLater).toBe(false);
+  });
 });

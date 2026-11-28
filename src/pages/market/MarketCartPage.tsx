@@ -217,7 +217,9 @@ export default function MarketCartPage() {
         },
       };
       const preview = await previewPaymentCheckout(tenantSlug, checkoutPayload);
-      if (preview?.payment_required && preview.payment_ready === false) {
+      const previewValidation = getMarketCommercialValidation(preview, cartQuery.data, cartQuery.data?.checkout_options);
+      const previewPayLater = previewValidation.canOrderPayLater === true;
+      if (preview?.payment_required && preview.payment_ready === false && !previewPayLater) {
         const previewExperience = preview.checkout_experience ?? preview.checkout_options?.checkout_experience ?? null;
         throw new Error(
           previewExperience?.copy?.customer_pending_gateway ??
@@ -227,8 +229,7 @@ export default function MarketCartPage() {
             'El checkout todavía no está listo para recibir pagos.',
         );
       }
-      const previewValidation = getMarketCommercialValidation(preview, cartQuery.data, cartQuery.data?.checkout_options);
-      if (!previewValidation.canStartCheckout && previewValidation.reason) {
+      if (!previewValidation.canStartCheckout && !previewPayLater && previewValidation.reason) {
         throw new Error(previewValidation.reason);
       }
       return startMarketCheckout(tenantSlug, checkoutPayload);
@@ -237,17 +238,17 @@ export default function MarketCartPage() {
       saveMarketContact(tenantSlug, variables);
       setContact(variables);
       const resolvedMarketOrderId = response?.market_order_id ?? response?.orderId ?? response?.order_id;
-      const resolvedPreference = response?.preference_id ?? response?.preferenceId;
-      const resolvedStage = response?.commercial_state?.stage ?? response?.estado ?? response?.status;
       const responseValidation = getMarketCommercialValidation(response, response?.order, response?.inventory_policy);
       const resolvedPaymentUrl = responseValidation.canStartCheckout ? response?.checkoutUrl ?? response?.init_point ?? null : null;
-      const confirmationParts = [
-        response?.message ?? responseValidation.reason ?? 'Solicitud registrada para validación.',
-      ];
-      if (resolvedMarketOrderId) confirmationParts.push(`Orden operacional #${resolvedMarketOrderId}.`);
-      if (resolvedStage) confirmationParts.push(`Estado: ${resolvedStage}.`);
-      if (resolvedPreference) confirmationParts.push(`Referencia de pago: ${resolvedPreference}.`);
-      setConfirmation(confirmationParts.join(' '));
+      const orderLabel = resolvedMarketOrderId ? ` #${resolvedMarketOrderId}` : '';
+      const payLaterOrder = response?.pay_later === true;
+      setConfirmation(
+        payLaterOrder
+          ? `Recibimos tu pedido${orderLabel}. El comercio te contacta para coordinar el pago y la entrega.`
+          : resolvedPaymentUrl
+            ? `Recibimos tu pedido${orderLabel}. Completá el pago para confirmarlo.`
+            : `Recibimos tu pedido${orderLabel}. Te avisamos cuando esté confirmado.`,
+      );
       setCheckoutPaymentUrl(resolvedPaymentUrl);
       queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
     },
@@ -390,7 +391,9 @@ export default function MarketCartPage() {
     () => getMarketCommercialValidation(cartQuery.data, cartCheckoutOptions, cartCheckoutPreview, ...cartItems),
     [cartCheckoutOptions, cartCheckoutPreview, cartItems, cartQuery.data],
   );
-  const checkoutBlockedReason = cartValidation.canStartCheckout ? null : cartValidation.reason;
+  // Without online payment the store still takes the order and agrees on payment.
+  const payLater = !cartValidation.canStartCheckout && cartValidation.canOrderPayLater === true;
+  const checkoutBlockedReason = cartValidation.canStartCheckout || payLater ? null : cartValidation.reason;
 
   const {
     averageRating,
