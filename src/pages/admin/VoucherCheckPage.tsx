@@ -46,13 +46,13 @@ export default function VoucherCheckPage() {
     try {
       const body = await apiFetch<{ result: 'redeemed'; voucher: VoucherView }>(
         `/api/admin/tenants/${encodeURIComponent(slug)}/vouchers/redeem`,
-        { method: 'POST', body: { code: value }, tenantSlug: slug },
+        { method: 'POST', body: { code: value }, tenantSlug: slug, suppressPanel401Redirect: true },
       );
       setResult({ kind: 'redeemed', voucher: body.voucher });
     } catch (error) {
       const data = error instanceof ApiError ? (error.body as { result?: string; voucher?: VoucherView } | null) : null;
       if (error instanceof ApiError && error.status === 409 && data?.voucher) setResult({ kind: 'used', voucher: data.voucher });
-      else if (error instanceof ApiError && error.status === 404) setResult({ kind: 'invalid' });
+      else if (error instanceof ApiError && (error.status === 422 || error.status === 404)) setResult({ kind: 'invalid' });
       else setResult({ kind: 'error' });
     } finally {
       setBusy(false);
