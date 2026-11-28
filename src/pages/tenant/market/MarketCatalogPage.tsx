@@ -16,7 +16,7 @@ import { useTenantContextPresence } from '@/context/TenantContext';
 import type { MarketAssistedIntakeEntry, MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
-import { ArrowRight, CheckCircle2, ChevronDown, ClipboardList, Copy, FileDown, FileText, MessageCircle, Percent, QrCode, Search, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
+import { ArrowRight, Share2, CheckCircle2, ChevronDown, ClipboardList, Copy, FileDown, FileText, MessageCircle, Percent, QrCode, Search, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Upload as UploadIcon } from 'lucide-react';
 
 type PromotionItem = NonNullable<NonNullable<MarketCatalogResponse['promotions']>['items']>[number];
 
@@ -586,6 +586,16 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       toast({ title: 'No se pudo copiar', description: shareUrl, variant: 'destructive' });
     }
   };
+  // One share action for buyers: the phone's share sheet, or copy the link.
+  const shareStore = async (source: string) => {
+    if (!shareUrl) return;
+    trackMarketplaceCta('catalog_shared', source, { share_url_available: true });
+    if (typeof navigator.share === 'function') {
+      try { await navigator.share({ title: storeName, url: shareUrl }); } catch { /* closed by the person */ }
+      return;
+    }
+    await copyShareUrl();
+  };
   const scrollToAssistedUpload = (preferredMode: 'file' | 'text' = 'file') => {
     const target = document.getElementById(ASSISTED_UPLOAD_ANCHOR_ID);
     if (target) {
@@ -665,6 +675,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   // With a full catalog the help blocks go after the products, so browsing is not
   // interrupted; with few or no products they stay near the top, where they help most.
   const helpOrder = products.length > 6 ? 'order-4' : 'order-2';
+  const hasPromotions = Boolean(facets?.promotion_count) || promotionOnly || promotionItems.length > 0;
   // White label: the store is presented with its own name and logo, never the platform's.
   const storeTenant = tenantContext?.tenant;
   const storeMatches = Boolean(storeTenant && storeTenant.slug === tenantSlug);
@@ -696,15 +707,17 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
         <div className="flex w-full min-w-0 items-center gap-2 md:w-auto md:justify-end">
           {showAssistedIntake ? (
-            <div data-testid="market-assisted-header-rail" className="min-w-0 flex-1 md:flex-none">
+            <div data-testid="market-assisted-header-rail" className="shrink-0">
               <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 data-testid="market-assisted-upload-cta"
-                className="w-full whitespace-normal leading-tight md:w-auto md:whitespace-nowrap"
                 onClick={() => activateAssistedUpload('file')}
+                title={assistedPrimaryCta}
               >
                 <UploadIcon className="mr-2 h-4 w-4 shrink-0" />
-                {assistedPrimaryCta}
+                Mandar una lista
               </Button>
             </div>
           ) : null}
@@ -716,52 +729,18 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               </Link>
             </Button>
           ) : null}
-          <div className="hidden shrink-0 items-center gap-1 md:flex" aria-label="Compartir catálogo">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={copyShareUrl}
-              disabled={!shareUrl || !canUseClipboard}
-              aria-label="Copiar enlace del catálogo"
-              title="Copiar enlace"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => openWhatsappShare('desktop_share_button')}
-              disabled={!shareMessage}
-              aria-label="Compartir por WhatsApp"
-              title="WhatsApp"
-            >
-              <MessageCircle className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => openQrShare('desktop_qr_button')}
-              disabled={!shareUrl}
-              aria-label="Abrir código QR"
-              title="Código QR"
-            >
-              <QrCode className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => openCatalogDownload('desktop_pdf_button')}
-              disabled={!catalogDownloadUrl}
-              aria-label="Descargar catálogo PDF"
-              title="Descargar PDF"
-            >
-              <FileDown className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            onClick={() => { void shareStore('header_share_button'); }}
+            disabled={!shareUrl}
+            aria-label="Compartir tienda"
+            title="Compartir tienda"
+          >
+            <Share2 className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
@@ -775,13 +754,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             {catalogStatusLine}
           </p>
         </div>
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_190px_190px_auto]">
-          <div className="relative min-w-0 sm:col-span-2 lg:col-span-1">
+        <div className={`grid min-w-0 gap-2 ${hasPromotions ? 'sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_190px_190px_auto]' : 'sm:grid-cols-[minmax(0,1fr)_220px]'}`}>
+          <div className={`relative min-w-0 ${hasPromotions ? 'sm:col-span-2 lg:col-span-1' : ''}`}>
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar producto, marca o promo..."
+              placeholder="Buscar productos"
               className="w-full min-w-0 pl-9"
             />
           </div>
@@ -798,6 +777,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               ))}
             </SelectContent>
           </Select>
+          {hasPromotions ? (<>
           <Select value={selectedSort} onValueChange={setSelectedSort}>
             <SelectTrigger className="w-full min-w-0" aria-label="Ordenar productos">
               <SelectValue placeholder="Orden" />
@@ -820,6 +800,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             <Sparkles className="mr-2 h-4 w-4 shrink-0" />
             En promoción
           </Button>
+          </>) : null}
         </div>
       </section>
 
@@ -832,7 +813,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
       <main
         data-testid="market-products-region"
-        className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+        className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4"
         aria-label="Productos del catálogo"
       >
         {isLoading
@@ -849,7 +830,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         {emptyState ? (
           <section
             data-testid={assistedFirstActive && catalogActuallyEmpty ? 'market-assisted-empty-state' : 'market-empty-state'}
-            className="order-1 border-y border-dashed py-5 md:col-span-2 lg:col-span-3"
+            className="order-1 border-y border-dashed py-5 col-span-2 md:col-span-3 lg:col-span-4"
           >
             <Badge variant="secondary" className="mb-2">
               {showAssistedIntake ? 'Sin productos' : 'Catálogo pendiente'}
@@ -898,11 +879,13 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
         {!isLoading
           ? products.map((product, index) => {
-              const responsiveOrder = index === 0
+              // Keep the whole first row of the grid (2 / 3 / 4 columns) ahead of
+              // the help block on every screen size.
+              const responsiveOrder = index <= 1
                 ? 'order-1'
-                : index === 1
+                : index === 2
                   ? 'order-3 md:order-1'
-                  : index === 2
+                  : index === 3
                     ? 'order-3 lg:order-1'
                     : 'order-3';
               return (
@@ -926,7 +909,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         {showAssistedIntake ? (
           <details
             data-testid="market-assisted-command"
-            className={`group ${helpOrder} overflow-hidden border-y bg-primary/5 md:col-span-2 lg:col-span-3`}
+            className={`group ${helpOrder} overflow-hidden border-y bg-primary/5 col-span-2 md:col-span-3 lg:col-span-4`}
             open={isAssistedPanelOpen}
           >
             <summary
@@ -941,9 +924,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                   <UploadIcon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold">Enviar nota, foto o texto</span>
+                  <span className="block text-sm font-semibold">¿Tenés una lista o una foto del pedido?</span>
                   <span className="block truncate text-xs text-muted-foreground sm:text-sm">
-                    Nota manuscrita, foto, PDF o texto, sin registro.
+                    Mandala y te armamos el pedido.
                   </span>
                 </span>
               </span>
@@ -976,175 +959,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           </details>
         ) : null}
 
-        <details
-          data-testid="market-assisted-details"
-          className={`group ${helpOrder} overflow-hidden border-y bg-muted/20 md:col-span-2 lg:col-span-3`}
-        >
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 sm:px-4">
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Como funciona y como compartir</span>
-              <span className="block truncate text-xs text-muted-foreground sm:text-sm">
-                Proceso, seguimiento y canales del pedido.
-              </span>
-            </span>
-            <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="divide-y border-t px-3 sm:px-4">
-            {showAssistedIntake ? (
-              <section className="py-4" aria-label="Alcance de la carga asistida">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <Badge variant="outline" className="mb-2 border-primary/30 bg-background text-primary">
-                      {assistedDisplayName}
-                    </Badge>
-                    <h3 className="text-sm font-semibold">Qué podés enviar</h3>
-                  </div>
-                  <span data-testid="market-assisted-public-promise" className="text-xs text-muted-foreground">
-                    Foto o manuscrito - texto de WhatsApp - documento o reclamo
-                  </span>
-                </div>
-                <div data-testid="market-assisted-use-cases" className="mt-3 grid gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {assistedUseCases.map((useCase) => {
-                    const Icon = useCase.icon;
-                    return (
-                      <div key={useCase.id} className="min-w-0 border-l-2 border-primary/30 pl-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold">
-                          <Icon className="h-4 w-4 shrink-0 text-primary" />
-                          <span>{useCase.title}</span>
-                        </div>
-                        {useCase.description ? (
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{useCase.description}</p>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {showAssistedIntake ? (
-              <section data-testid="market-assisted-public-flow" className="py-4" aria-label="Circuito de carga asistida">
-                <h3 className="text-sm font-semibold">Circuito asistido</h3>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {ASSISTED_PUBLIC_FLOW_STEPS.map((step, index) => {
-                    const Icon = step.icon;
-                    return (
-                      <div key={step.title} className="relative min-w-0 pr-3">
-                        {index < ASSISTED_PUBLIC_FLOW_STEPS.length - 1 ? (
-                          <ArrowRight className="absolute -right-1 top-2 hidden h-4 w-4 text-muted-foreground lg:block" />
-                        ) : null}
-                        <div className="flex items-center gap-2 text-sm font-semibold">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span>{step.title}</span>
-                        </div>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {showAssistedIntake ? (
-              <section data-testid="market-assisted-team-handoff" className="py-4" aria-label="Información para el equipo">
-                <h3 className="text-sm font-semibold">Lo que recibe el equipo</h3>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  {ASSISTED_TEAM_HANDOFFS.map((handoff) => {
-                    const Icon = handoff.icon;
-                    return (
-                      <div key={handoff.title} className="min-w-0 border-l-2 border-border pl-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold">
-                          <Icon className="h-4 w-4 shrink-0 text-primary" />
-                          <span>{handoff.title}</span>
-                        </div>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{handoff.description}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {commerceLoopSteps.length ? (
-              <section data-testid="market-commerce-loop" className="py-4" aria-label="Seguimiento operativo del pedido">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    Pedido trazable de punta a punta
-                  </h3>
-                  <Badge variant="outline">
-                    {publicApi?.analytics?.write_mode === 'frontend_signal_plus_server_reconciliation'
-                      ? 'Frontend + servidor'
-                      : publicApi?.analytics?.contract_version ?? 'Loop operativo'}
-                  </Badge>
-                </div>
-                <div className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                  {commerceLoopSteps.map((step, index) => (
-                    <div key={`${step.id}-${index}`} className="min-w-0 border-l-2 border-border pl-3">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-                        <p className="text-sm font-semibold">{step.label}</p>
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            <section className="py-4 md:hidden" aria-label="Compartir catálogo desde el celular">
-              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => openWhatsappShare('mobile_share_button')}
-                  disabled={!shareMessage}
-                  className="w-full whitespace-normal leading-tight"
-                >
-                  <MessageCircle className="mr-2 h-4 w-4" />
-                  Continuar por WhatsApp
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={copyShareUrl}
-                  disabled={!shareUrl || !canUseClipboard}
-                  className="w-full whitespace-normal leading-tight"
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar enlace
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => openQrShare('mobile_qr_button')}
-                  disabled={!shareUrl}
-                  className="w-full"
-                  data-testid="market-mobile-qr-share"
-                >
-                  <QrCode className="mr-2 h-4 w-4" />
-                  QR
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => openCatalogDownload('mobile_pdf_button')}
-                  disabled={!catalogDownloadUrl}
-                  className="w-full"
-                  data-testid="market-mobile-download-catalog"
-                >
-                  <FileDown className="mr-2 h-4 w-4" />
-                  PDF
-                </Button>
-              </div>
-            </section>
-          </div>
-        </details>
 
         {promotionItems.length ? (
-          <section className="order-4 border-t pt-5 md:col-span-2 lg:col-span-3" aria-label="Promociones activas">
+          <section className="order-4 border-t pt-5 col-span-2 md:col-span-3 lg:col-span-4" aria-label="Promociones activas">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <Badge variant="outline" className="mb-2 border-emerald-200 bg-emerald-50 text-emerald-700">

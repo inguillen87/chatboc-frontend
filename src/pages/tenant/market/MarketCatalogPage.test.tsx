@@ -136,14 +136,8 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId('market-commerce-loop')).toBeInTheDocument();
-    expect(screen.getByText('Pedido trazable de punta a punta')).toBeInTheDocument();
-    expect(screen.getByText('Catálogo visto')).toBeInTheDocument();
-    expect(screen.getByText('Pedido asistido')).toBeInTheDocument();
-    expect(screen.getByText('Carrito iniciado')).toBeInTheDocument();
-    expect(screen.getByText('Checkout creado')).toBeInTheDocument();
-    expect(screen.getByText('Pedido generado')).toBeInTheDocument();
-    expect(screen.getByText('Seguimiento abierto')).toBeInTheDocument();
+    // How the store team follows an order is panel context, not buyer copy.
+    expect(screen.queryByTestId('market-commerce-loop')).not.toBeInTheDocument();
   });
 
   it('keeps assisted order upload visible and reachable when the public catalog has no products', async () => {
@@ -178,88 +172,32 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByRole('heading', { name: 'Tienda' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Buscar producto/i)).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /Filtrar por categoría/i })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: /Ordenar productos/i })).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-header-rail')).toBeInTheDocument();
-    expect(screen.getByTestId('market-assisted-upload-cta')).toHaveTextContent('Subir pedido o documento');
-    expect(screen.getAllByText('Vega Marketplace IA').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('market-assisted-upload-cta')).toHaveTextContent('Mandar una lista');
     expect(screen.getAllByText(/sin registro/i).length).toBeGreaterThanOrEqual(1);
-    const useCases = screen.getByTestId('market-assisted-use-cases');
-    expect(useCases).toBeInTheDocument();
-    expect(useCases).toHaveTextContent('Reclamo vecinal');
-    expect(useCases).toHaveTextContent('Boleta o comprobante');
-    expect(useCases).toHaveTextContent('Certificado o tramite');
-    expect(useCases).toHaveTextContent('Pedido escrito');
     const assistedCommand = screen.getByTestId('market-assisted-command');
     await waitFor(() => expect(assistedCommand).toHaveAttribute('open'));
     expect(assistedCommand).toHaveClass('order-2');
-    expect(screen.getByText(/Nota manuscrita, foto, PDF o texto/i)).toBeInTheDocument();
+    expect(screen.getByText(/Mandala y te armamos el pedido/i)).toBeInTheDocument();
     expect(screen.getByText(/Subí una foto, lista, boleta o reclamo/i)).toBeInTheDocument();
     expect(emptyState).toHaveTextContent('Catalogo sin productos visibles, solicitud asistida activa');
     expect(emptyState).toHaveTextContent('Aunque todavia no haya productos publicados, el vecino puede subir documentos.');
     expect(emptyState.compareDocumentPosition(assistedCommand) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByTestId('market-assisted-public-promise')).toBeInTheDocument();
-    expect(screen.getByTestId('market-assisted-public-promise')).toHaveTextContent('Foto o manuscrito');
-    expect(screen.getByTestId('market-assisted-public-promise')).toHaveTextContent('texto de WhatsApp');
-    expect(screen.getByTestId('market-assisted-public-promise')).toHaveTextContent('documento o reclamo');
-    expect(screen.getByTestId('market-assisted-public-flow')).toBeInTheDocument();
-    expect(screen.getByText('Foto o texto')).toBeInTheDocument();
-    expect(screen.getByText('Lectura ordenada')).toBeInTheDocument();
-    expect(screen.getByText('Solicitud en panel')).toBeInTheDocument();
-    expect(screen.getByText('Respuesta y seguimiento')).toBeInTheDocument();
-    expect(screen.getByTestId('market-assisted-team-handoff')).toBeInTheDocument();
-    expect(screen.getByText('Pedido desmenuzado')).toBeInTheDocument();
-    expect(screen.getByText('Datos faltantes')).toBeInTheDocument();
-    expect(screen.getByText('Respuesta lista')).toBeInTheDocument();
-    expect(screen.getByTestId('market-commerce-loop')).toBeInTheDocument();
-    expect(screen.getByText('Pedido trazable de punta a punta')).toBeInTheDocument();
-    expect(screen.getByText('Catálogo visto')).toBeInTheDocument();
-    expect(screen.getByText('Pedido asistido')).toBeInTheDocument();
-    expect(screen.getByText('Carrito iniciado')).toBeInTheDocument();
-    expect(screen.getByText('Checkout creado')).toBeInTheDocument();
-    expect(screen.getByText('Pedido generado')).toBeInTheDocument();
-    expect(screen.getByText('Seguimiento abierto')).toBeInTheDocument();
     expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
     expect(document.querySelector('[data-assisted-textarea="true"]')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Boleta \/ impuesto/i })).toBeInTheDocument();
     expect(screen.getByText('Nota manuscrita')).toBeInTheDocument();
     expect(screen.queryByTestId('market-empty-state')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Continuar por WhatsApp/i })).toBeInTheDocument();
-    expect(screen.getByTestId('market-mobile-qr-share')).toBeEnabled();
-    expect(screen.getByTestId('market-mobile-download-catalog')).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Compartir tienda' })).toBeEnabled();
     expect(document.body.textContent).not.toMatch(/\bCRM\b|Intake IA|OCR \+ IA|\bIA\b desmenuza|lectura IA/i);
 
-    fireEvent.click(screen.getByTestId('market-mobile-qr-share'));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartir tienda' }));
 
     expect(trackFrontendEventMock).toHaveBeenCalledWith(
-      'catalog_qr_opened',
-      expect.objectContaining({
-        tenant_slug: 'junin',
-        source: 'mobile_qr_button',
-        share_url_available: true,
-      }),
-    );
-    expect(window.open).toHaveBeenCalledWith(
-      'https://quickchart.io/qr?text=https%3A%2F%2Fchatboc.ar%2Ft%2Fjunin%2Fcart&margin=12&size=320',
-      '_blank',
-      'noopener,noreferrer',
+      'catalog_shared',
+      expect.objectContaining({ tenant_slug: 'junin', source: 'header_share_button', share_url_available: true }),
     );
 
-    fireEvent.click(screen.getByTestId('market-mobile-download-catalog'));
-
-    expect(trackFrontendEventMock).toHaveBeenCalledWith(
-      'catalog_download_opened',
-      expect.objectContaining({
-        tenant_slug: 'junin',
-        source: 'mobile_pdf_button',
-        format: 'pdf',
-        download_contract: 'public.catalog_download.v1',
-      }),
-    );
-    expect(window.open).toHaveBeenCalledWith(
-      '/api/public/tenants/junin/catalog/download?format=pdf',
-      '_blank',
-      'noopener,noreferrer',
-    );
 
     fireEvent.click(screen.getByTestId('market-assisted-upload-cta'));
 
@@ -502,15 +440,13 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     const third = screen.getByTestId('market-product-prod-3');
     const fourth = screen.getByTestId('market-product-prod-4');
     const uploadDisclosure = screen.getByTestId('market-assisted-command');
-    const processDisclosure = screen.getByTestId('market-assisted-details');
 
     expect(controls.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(first).toHaveClass('order-1');
-    expect(second).toHaveClass('order-3', 'md:order-1');
-    expect(third).toHaveClass('order-3', 'lg:order-1');
-    expect(fourth).toHaveClass('order-3');
-    expect(uploadDisclosure).toHaveClass('order-2', 'md:col-span-2', 'lg:col-span-3');
-    expect(processDisclosure).toHaveClass('order-2', 'md:col-span-2', 'lg:col-span-3');
+    expect(second).toHaveClass('order-1');
+    expect(third).toHaveClass('order-3', 'md:order-1');
+    expect(fourth).toHaveClass('order-3', 'lg:order-1');
+    expect(uploadDisclosure).toHaveClass('order-2', 'col-span-2', 'md:col-span-3', 'lg:col-span-4');
     expect(uploadDisclosure).not.toHaveAttribute('open');
     expect(screen.getAllByTestId('market-assisted-upload-cta')).toHaveLength(1);
   });
