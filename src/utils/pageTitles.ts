@@ -69,6 +69,14 @@ export function isTenantShellManagedPath(pathname: string): boolean {
   );
 }
 
+/** A tenant's own store (catalog, product, cart, checkout) on the shared host. */
+export function isTenantStorefrontPath(pathname: string): boolean {
+  const info = extractTenantRouteInfo(normalizePathname(pathname));
+  if (!info) return false;
+  const rest = info.restPath.toLowerCase();
+  return /^\/(?:market(?:\/(?!blueprint(?:\/|$))[^/]+)*|cart|checkout)\/?$/.test(rest);
+}
+
 export function isSelfManagedMetadataPath(pathname: string): boolean {
   const normalized = normalizePathname(pathname).toLowerCase();
   return (

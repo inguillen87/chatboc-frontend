@@ -406,18 +406,23 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const assistedIntakeExplicitlyDisabled =
     frontendContract?.show_assisted_intake === false && products.length > 0 && !catalogHasNoPublishedProducts;
   const catalogStatusLine = useMemo(() => {
-    if (isLoading) return 'Actualizando productos, promociones y disponibilidad...';
+    if (isLoading) return 'Actualizando productos, promociones y disponibilidad…';
     const visibleCount = total ?? products.length;
     const publishedCount = typeof totalUnfiltered === 'number' ? totalUnfiltered : products.length;
     if (visibleCount === 0 && publishedCount === 0) {
       return assistedIntakeExplicitlyDisabled
         ? 'Catálogo sin productos publicados por ahora. Usá los canales de contacto del tenant para continuar.'
-        : 'Subi una foto, lista, boleta o reclamo. El equipo recibe una solicitud ordenada y responde con seguimiento.';
+        : 'Subí una foto, lista, boleta o reclamo. El equipo recibe una solicitud ordenada y responde con seguimiento.';
     }
-    const parts = [`${visibleCount} ${visibleCount === 1 ? 'visible' : 'visibles'}`];
-    if (typeof totalUnfiltered === 'number') parts.push(`de ${totalUnfiltered} publicados`);
-    if (facets?.promotion_count) parts.push(`${facets.promotion_count} con promocion`);
-    return `${parts.join(' - ')}.`;
+    const noun = (count: number) => (count === 1 ? 'producto' : 'productos');
+    const filtered = typeof totalUnfiltered === 'number' && visibleCount !== totalUnfiltered;
+    const head = filtered
+      ? `Mostrando ${visibleCount} de ${totalUnfiltered} ${noun(totalUnfiltered as number)}`
+      : `${visibleCount} ${noun(visibleCount)}`;
+    const promos = facets?.promotion_count
+      ? `, ${facets.promotion_count} en promoción`
+      : '';
+    return `${head}${promos}.`;
   }, [assistedIntakeExplicitlyDisabled, facets?.promotion_count, isLoading, products.length, total, totalUnfiltered]);
   const emptyState = !isLoading && products.length === 0;
   const catalogActuallyEmpty = catalogHasNoPublishedProducts;
@@ -813,7 +818,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             aria-pressed={promotionOnly}
           >
             <Sparkles className="mr-2 h-4 w-4 shrink-0" />
-            En promocion
+            En promoción
           </Button>
         </div>
       </section>

@@ -66,7 +66,7 @@ import { hasPersistedClerkSession, logoutChatbocSession } from "@/utils/sessionL
 import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
 import { readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 import { hasOrganizationIdentityContracts, readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
-import { isTenantShellManagedPath } from '@/utils/pageTitles';
+import { isTenantShellManagedPath, isTenantStorefrontPath } from '@/utils/pageTitles';
 
 interface AdminNavLink {
   to: string;
@@ -129,19 +129,27 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
     try { publicTenantSlug = exactInstitutionSlug(readCanonicalTenantSlugFromPath(location.pathname)); }
     catch { /* Invalid or legacy routes without an explicit tenant stay neutral. */ }
   }
+  // A tenant's store wears the tenant's published identity too, while keeping
+  // the buyer's cart and account controls.
+  let storefrontSlug: string | null = null;
+  if (!hostBinding && !privateShell.active && !publicTenantSlug && isTenantStorefrontPath(location.pathname)) {
+    try { storefrontSlug = exactInstitutionSlug(readCanonicalTenantSlugFromPath(location.pathname)); }
+    catch { /* Invalid store routes stay neutral. */ }
+  }
+  const brandTenantSlug = publicTenantSlug ?? storefrontSlug;
   const isPublicTenantPage = Boolean(publicTenantSlug);
   const isInstitutionalPublicChrome = Boolean(hostBinding || isPublicTenantPage);
   let publicIdentity: ReturnType<typeof readPublishedTenantIdentity> = null;
   const published = tenant?.publishedIdentity;
-  if (publicTenantSlug && !isLoadingTenant && !tenantError
-    && exactInstitutionSlug(currentSlug) === publicTenantSlug && exactInstitutionSlug(tenant?.slug) === publicTenantSlug
+  if (brandTenantSlug && !isLoadingTenant && !tenantError
+    && exactInstitutionSlug(currentSlug) === brandTenantSlug && exactInstitutionSlug(tenant?.slug) === brandTenantSlug
     && published && Number.isSafeInteger(published.tenantId) && published.tenantId > 0) {
     try {
       publicIdentity = readPublishedTenantIdentity({ id: published.tenantId, slug: published.tenantSlug,
-        nombre: published.name, logo_url: published.logoUrl }, publicTenantSlug);
+        nombre: published.name, logo_url: published.logoUrl }, brandTenantSlug);
     } catch { /* A retained or mismatched public identity must not brand this route. */ }
   }
-  const publicLoginPath = publicIdentity ? buildTenantPath('/login', publicIdentity.tenantSlug) : null;
+  const publicLoginPath = publicIdentity && isPublicTenantPage ? buildTenantPath('/login', publicIdentity.tenantSlug) : null;
   // Tenant commerce is not a platform upsell; no published type or URL disables it.
   const showTenantCart = !isPublicTenantPage || Boolean(publicIdentity);
   const cartCount = useCartCount(!privateShell.active && !hostBinding && showTenantCart);
@@ -461,7 +469,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
       {privateShell.active&&privateBandColors.length>=2?<span aria-hidden="true" className="private-workspace-band" data-testid="private-workspace-band"
         style={{backgroundImage:`linear-gradient(90deg, ${privateBandColors.join(', ')})`}}/>:null}
       <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
-        {hostBinding ? <InstitutionalAccessBrand key={JSON.stringify([hostBinding.host,hostBinding.identity.logoUrl])} identity={hostBinding.identity} homePath={hostBinding.paths.home} subtitle={hostBinding.host} ref={institutionBrandRef}/> : privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl,privateBrand?.logo?.mark])} identity={privateShell.identity} markUrl={privateBrand?.logo?.mark??null} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} subtitle={accessIdentity.tenantSlug} ref={institutionBrandRef}/> : publicIdentity ? <InstitutionalAccessBrand key={JSON.stringify([publicIdentity.tenantId,publicIdentity.tenantSlug,publicIdentity.logoUrl])} identity={publicIdentity} ref={institutionBrandRef}/> : isPublicTenantPage ? <span className="institutional-access-brand" data-testid="public-workspace-pending" aria-hidden="true"><Building2 size={30}/></span> : <button
+        {hostBinding ? <InstitutionalAccessBrand key={JSON.stringify([hostBinding.host,hostBinding.identity.logoUrl])} identity={hostBinding.identity} homePath={hostBinding.paths.home} subtitle={hostBinding.host} ref={institutionBrandRef}/> : privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl,privateBrand?.logo?.mark])} identity={privateShell.identity} markUrl={privateBrand?.logo?.mark??null} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} subtitle={accessIdentity.tenantSlug} ref={institutionBrandRef}/> : publicIdentity ? <InstitutionalAccessBrand key={JSON.stringify([publicIdentity.tenantId,publicIdentity.tenantSlug,publicIdentity.logoUrl])} identity={publicIdentity} ref={institutionBrandRef}/> : brandTenantSlug ? <span className="institutional-access-brand" data-testid="public-workspace-pending" aria-hidden="true"><Building2 size={30}/></span> : <button
           ref={brandHomeButtonRef}
           type="button"
           onClick={handleLogoClick}

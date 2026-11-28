@@ -206,3 +206,35 @@ describe('Navbar preserved presentation boundaries',()=>{
     expect(screen.getByRole('link',{name:'Iniciar sesión'})).toHaveAttribute('href','/login');
   });
 });
+
+describe('Navbar tenant storefront identity',()=>{
+  it.each(['/t/institution-a/market','/t/institution-a/market/product/12','/t/institution-a/cart','/t/institution-a/checkout'])(
+    'wears the published identity and keeps the buyer cart on %s',path=>{
+      mount(path);
+      expect(screen.getByRole('link',{name:'Published institution A'})).toHaveAttribute('data-tenant-id','41');
+      expect(within(header()).queryByText('Chatboc.ar')).not.toBeInTheDocument();
+      expect(screen.getByRole('link',{name:'Ver carrito'})).toHaveAttribute('href','/t/institution-a/cart');
+    });
+  it('keeps a signed-in buyer account on the store',()=>{
+    fixtures.user={user:{id:9,name:'Buyer',email:'buyer@example.test',rol:'usuario'},loading:false,organizationProfileVerified:false};
+    fixtures.session={hasVerifiedSession:true,hasBearerSession:true};
+    window.localStorage.setItem('user',JSON.stringify(fixtures.user.user));
+    mount('/t/institution-a/market');
+    expect(screen.getByRole('link',{name:'Published institution A'})).toBeInTheDocument();
+    expect(within(header()).queryByRole('link',{name:'Iniciar sesión'})).not.toBeInTheDocument();
+  });
+  it.each(['loading','identity-slug'])('shows the neutral mark, never Chatboc or another brand, while %s',state=>{
+    const value=publicTenant();
+    if(state==='loading')value.isLoadingTenant=true;
+    if(state==='identity-slug')value.tenant.publishedIdentity.tenantSlug='other-institution';
+    fixtures.tenant=value;mount('/t/institution-a/market');
+    expect(screen.getByTestId('public-workspace-pending')).toBeInTheDocument();
+    expect(within(header()).queryByText('Chatboc.ar')).not.toBeInTheDocument();
+    expect(within(header()).queryByText('Published institution A')).not.toBeInTheDocument();
+  });
+  it('leaves the marketplace blueprint as a platform page',()=>{
+    mount('/t/institution-a/market/blueprint');
+    expect(within(header()).getByText('Chatboc.ar')).toBeInTheDocument();
+  });
+});
+
