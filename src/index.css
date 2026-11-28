@@ -2152,8 +2152,31 @@ body,
   width: 100%;
   min-width: 100%;
   min-height: 100dvh;
+}
+
+html {
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/* Only the page scrolls. «clip» trims sideways overflow like «hidden» did,
+   but does not turn body or #root into scroll containers, which broke every
+   «position: sticky» on the site (sticky headers, side panels, scroll stories). */
+body,
+#root,
+#__next,
+#app {
+  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
+}
+@supports not (overflow-x: clip) {
+  body,
+  #root,
+  #__next,
+  #app {
+    overflow-y: auto;
+  }
 }
 
 html {
